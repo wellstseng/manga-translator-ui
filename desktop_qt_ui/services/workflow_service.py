@@ -1016,6 +1016,10 @@ def safe_update_large_json_from_text(
         update_time = time.time() - start_time
         logger.info(f"更新完成，耗时 {update_time:.2f} 秒，更新了 {updated_count} 条")
 
+        # 导入翻译并渲染：无论导入内容是否与现有 translation 完全相同，
+        # 只要这次走了导入流程，后续渲染都应重新执行文字缩放。
+        source_data[image_key]['skip_font_scaling'] = False
+
         # 6. 写回文件（使用临时文件确保原子性）
         logger.debug("Writing updated data to temporary file.")
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False, 
