@@ -339,7 +339,7 @@ Important behavior:
 
 ### 1. Get an API key
 
-1. Visit [Google AI Studio](https://aistudio.google.com/apikey)
+1. Visit [Google Cloud Vertex AI Studio API Keys](https://console.cloud.google.com/vertex-ai/studio/settings/api-keys)
 2. Sign in with a Google account
 3. Click `Create API Key`
 4. Select or create a Google Cloud project

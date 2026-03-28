@@ -718,12 +718,16 @@ class PromptPreviewPanel(QWidget):
             return False
         if _is_colorizer_structured(data):
             return True
-        # 只要有以下任一关键字段就认为是结构化的
-        return bool(
-            data.get("glossary")
-            or data.get("project_data")
-            or data.get("style_guide")
-            or data.get("translation_rules")
+        # 只要存在以下任一关键字段就认为是结构化的。
+        return any(
+            key in data
+            for key in (
+                "system_prompt",
+                "glossary",
+                "project_data",
+                "style_guide",
+                "translation_rules",
+            )
         )
 
     # ─── 结构化渲染 ────────────────────────────────────
@@ -734,7 +738,14 @@ class PromptPreviewPanel(QWidget):
             self._render_colorizer_structured(data)
             return
 
-        # 1. Project data
+        # 1. System prompt
+        system_prompt = data.get("system_prompt")
+        if isinstance(system_prompt, str) and system_prompt.strip():
+            layout.addWidget(_section_label("🧭 " + self._t("System Prompt")))
+            layout.addWidget(_body_label(system_prompt.strip()))
+            layout.addWidget(_divider())
+
+        # 2. Project data
         project = data.get("project_data")
         if isinstance(project, dict):
             title = project.get("title")
@@ -754,7 +765,7 @@ class PromptPreviewPanel(QWidget):
             if has_project_content:
                 layout.addWidget(_divider())
 
-        # 2. Style Guide
+        # 3. Style Guide
         sg = data.get("style_guide")
         if isinstance(sg, list) and sg:
             layout.addWidget(_section_label("🎨 " + self._t("Style Guide")))
@@ -762,7 +773,7 @@ class PromptPreviewPanel(QWidget):
                 layout.addWidget(_body_label("• " + str(item)))
             layout.addWidget(_divider())
 
-        # 3. Translation Rules
+        # 4. Translation Rules
         tr = data.get("translation_rules")
         if isinstance(tr, list) and tr:
             layout.addWidget(_section_label("📏 " + self._t("Translation Rules")))
@@ -770,52 +781,56 @@ class PromptPreviewPanel(QWidget):
                 layout.addWidget(_body_label("• " + str(item)))
             layout.addWidget(_divider())
 
-        # 4. Glossary (auto-extracted)
+        # 5. Glossary (auto-extracted)
         glossary = data.get("glossary")
         if isinstance(glossary, dict) and glossary:
             total = sum(len(v) for v in glossary.values() if isinstance(v, list))
             layout.addWidget(_section_label("📖 " + self._t("Glossary") + f" ({total})"))
 
-            # 用 tab widget 按分类展示
-            tabs = QTabWidget()
-            tabs.setStyleSheet(_prompt_tabs_style())
+            if total <= 0:
+                layout.addWidget(_dim_label(self._t("No glossary entries")))
+                layout.addWidget(_divider())
+            else:
+                # 用 tab widget 按分类展示
+                tabs = QTabWidget()
+                tabs.setStyleSheet(_prompt_tabs_style())
 
-            category_icons = {
-                "Person": "👤",
-                "Location": "📍",
-                "Org": "🏢",
-                "Item": "🔮",
-                "Skill": "⚡",
-                "Creature": "🐾",
-            }
+                category_icons = {
+                    "Person": "👤",
+                    "Location": "📍",
+                    "Org": "🏢",
+                    "Item": "🔮",
+                    "Skill": "⚡",
+                    "Creature": "🐾",
+                }
 
-            for cat_key in ["Person", "Location", "Org", "Item", "Skill", "Creature"]:
-                entries = glossary.get(cat_key, [])
-                if not isinstance(entries, list) or not entries:
-                    continue
-                icon = category_icons.get(cat_key, "")
-                tab_page = QWidget()
-                tab_lay = QVBoxLayout(tab_page)
-                tab_lay.setContentsMargins(4, 4, 4, 4)
-                tab_lay.addWidget(_make_person_glossary_table(entries) if cat_key == "Person" else _make_glossary_table(entries))
-                tabs.addTab(tab_page, f"{icon} {self._t(cat_key)} ({len(entries)})")
+                for cat_key in ["Person", "Location", "Org", "Item", "Skill", "Creature"]:
+                    entries = glossary.get(cat_key, [])
+                    if not isinstance(entries, list) or not entries:
+                        continue
+                    icon = category_icons.get(cat_key, "")
+                    tab_page = QWidget()
+                    tab_lay = QVBoxLayout(tab_page)
+                    tab_lay.setContentsMargins(4, 4, 4, 4)
+                    tab_lay.addWidget(_make_person_glossary_table(entries) if cat_key == "Person" else _make_glossary_table(entries))
+                    tabs.addTab(tab_page, f"{icon} {self._t(cat_key)} ({len(entries)})")
 
-            # 处理非标准分类
-            standard_keys = {"Person", "Location", "Org", "Item", "Skill", "Creature"}
-            for cat_key, entries in glossary.items():
-                if cat_key in standard_keys:
-                    continue
-                if not isinstance(entries, list) or not entries:
-                    continue
-                tab_page = QWidget()
-                tab_lay = QVBoxLayout(tab_page)
-                tab_lay.setContentsMargins(4, 4, 4, 4)
-                tab_lay.addWidget(_make_person_glossary_table(entries) if cat_key == "Person" else _make_glossary_table(entries))
-                tabs.addTab(tab_page, f"{cat_key} ({len(entries)})")
+                # 处理非标准分类
+                standard_keys = {"Person", "Location", "Org", "Item", "Skill", "Creature"}
+                for cat_key, entries in glossary.items():
+                    if cat_key in standard_keys:
+                        continue
+                    if not isinstance(entries, list) or not entries:
+                        continue
+                    tab_page = QWidget()
+                    tab_lay = QVBoxLayout(tab_page)
+                    tab_lay.setContentsMargins(4, 4, 4, 4)
+                    tab_lay.addWidget(_make_person_glossary_table(entries) if cat_key == "Person" else _make_glossary_table(entries))
+                    tabs.addTab(tab_page, f"{cat_key} ({len(entries)})")
 
-            tabs.setMinimumHeight(200)
-            layout.addWidget(tabs)
-            layout.addWidget(_divider())
+                tabs.setMinimumHeight(200)
+                layout.addWidget(tabs)
+                layout.addWidget(_divider())
 
         layout.addStretch()
 
@@ -1062,6 +1077,7 @@ class PromptEditorDialog(QDialog):
         self._was_saved = False
 
         # 模板编辑的控件引用
+        self._system_prompt_edit: Optional[QPlainTextEdit] = None
         self._style_guide_edit: Optional[QPlainTextEdit] = None
         self._rules_edit: Optional[QPlainTextEdit] = None
         self._term_table: Optional[QTableWidget] = None
@@ -1164,6 +1180,10 @@ class PromptEditorDialog(QDialog):
 
         data = self._data
 
+        # System prompt
+        if isinstance(data, dict) and "system_prompt" in data:
+            self._insert_section("system_prompt", text=str(data.get("system_prompt") or ""))
+
         # Project title
         project = data.get("project_data")
         if isinstance(project, dict):
@@ -1207,6 +1227,7 @@ class PromptEditorDialog(QDialog):
 
     # ─── 容器创建 & 操作栏 ─────────────────────────────
     _SECTION_META = {
+        "system_prompt":     ("🧭", "System Prompt"),
         "project_title":     ("📚", "Project Title"),
         "terminology":       ("📝", "Terminology"),
         "style_guide":       ("🎨", "Style Guide"),
@@ -1272,7 +1293,9 @@ class PromptEditorDialog(QDialog):
         container, body = self._make_section_container(key)
 
         # 根据 key 填充 body
-        if key == "project_title":
+        if key == "system_prompt":
+            self._fill_system_prompt(body, kwargs.get("text", ""))
+        elif key == "project_title":
             self._fill_project_title(body, kwargs.get("title", ""))
         elif key == "terminology":
             self._fill_terminology(body, kwargs.get("term", {}))
@@ -1293,6 +1316,11 @@ class PromptEditorDialog(QDialog):
         self._refresh_section_move_buttons()
 
     # ─── 各字段的填充方法 ──────────────────────────────
+    def _fill_system_prompt(self, layout: QVBoxLayout, text: str = ""):
+        self._system_prompt_edit = _styled_text_edit(text)
+        self._system_prompt_edit.setFixedHeight(180)
+        layout.addWidget(self._system_prompt_edit)
+
     def _fill_project_title(self, layout: QVBoxLayout, title: str = ""):
         self._title_edit = QLineEdit(title)
         self._title_edit.setStyleSheet(_line_edit_style())
@@ -1643,7 +1671,9 @@ class PromptEditorDialog(QDialog):
         self._refresh_section_move_buttons()
 
         # 清空控件引用
-        if key == "project_title":
+        if key == "system_prompt":
+            self._system_prompt_edit = None
+        elif key == "project_title":
             self._title_edit = None
         elif key == "terminology":
             self._term_table = None
@@ -1658,6 +1688,7 @@ class PromptEditorDialog(QDialog):
 
     # ─── 添加字段菜单 ──────────────────────────────────
     _SECTION_DEFS = [
+        ("system_prompt",     "🧭", "System Prompt"),
         ("project_title",     "📚", "Project Title"),
         ("terminology",       "📝", "Terminology"),
         ("style_guide",       "🎨", "Style Guide"),
@@ -1760,7 +1791,15 @@ class PromptEditorDialog(QDialog):
     def _collect_template_data(self) -> dict:
         """从模板编辑控件收集数据，并按当前 section 顺序重建结构。"""
         base_data = self._data if isinstance(self._data, dict) else {}
-        managed_keys = {"project_data", "style_guide", "translation_rules", "glossary", "output_format", "persona"}
+        managed_keys = {
+            "system_prompt",
+            "project_data",
+            "style_guide",
+            "translation_rules",
+            "glossary",
+            "output_format",
+            "persona",
+        }
         passthrough_items = [(key, value) for key, value in base_data.items() if key not in managed_keys]
         section_order = [key for key, _ in self._section_containers]
         data: Dict[str, Any] = {}
@@ -1814,11 +1853,14 @@ class PromptEditorDialog(QDialog):
                         entry = _get_basic_glossary_row(tbl, row)
                         if entry["original"]:
                             entries.append(entry)
-                if entries:
-                    glossary_data[cat_key] = entries
+                # 保留空分类，避免保存后 glossary 被塌缩成 {}。
+                glossary_data[cat_key] = entries
 
         project_inserted = False
         for key in section_order:
+            if key == "system_prompt" and self._system_prompt_edit is not None:
+                data["system_prompt"] = self._system_prompt_edit.toPlainText()
+                continue
             if key in {"project_title", "terminology"}:
                 if not project_inserted and project_data is not None:
                     data["project_data"] = project_data
@@ -1900,6 +1942,7 @@ class PromptEditorDialog(QDialog):
             # 同步另一个 tab
             if self._is_structured and current_tab == 0:
                 self._free_editor.setPlainText(content)
+            self.accept()
         except Exception as e:
             self._status.setText(f"❌ {self._t('Save failed')}: {e}")
             self._status.setStyleSheet(_status_style("error"))

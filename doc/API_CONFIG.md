@@ -207,7 +207,7 @@ Vertex 系列复用 Google 官方 Gemini 接口，但使用独立的 `VERTEX_*` 
 
 ### 1. 获取 API Key
 
-1. 访问 [Google AI Studio](https://aistudio.google.com/apikey)
+1. 访问 [Google Cloud Vertex AI Studio API Keys](https://console.cloud.google.com/vertex-ai/studio/settings/api-keys)
 2. 登录 Google 账号
 3. 点击"Create API Key"
 4. 选择 Google Cloud 项目（或创建新项目）

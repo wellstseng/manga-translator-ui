@@ -45,18 +45,17 @@ logger = logging.getLogger("manga_translator")
 
 
 def is_ai_colorizer_prompt_data(data) -> bool:
-    return isinstance(data, dict) and any(
+    if not isinstance(data, dict):
+        return False
+    # 仅根据 AI 上色专用字段判断，避免普通翻译 JSON/YAML 被误判为上色提示词。
+    return any(
         key in data
         for key in (
             "ai_colorizer_prompt",
             "colorizer_prompt",
-            "prompt",
             "colorization_rules",
-            "rules",
-            "style_guide",
             "reference_images",
             "reference_image_paths",
-            "images",
         )
     )
 
