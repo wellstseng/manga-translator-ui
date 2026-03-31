@@ -1302,9 +1302,25 @@ def _font_supports_character(raw_font: QRawFont, cdpt: str) -> bool:
         return True
 
 
-def _glyph_is_renderable(raw_font: QRawFont, glyph_id: int) -> bool:
+def _glyph_has_advance(raw_font: QRawFont, glyph_id: int) -> bool:
     if not glyph_id:
         return False
+    try:
+        advances = raw_font.advancesForGlyphIndexes([glyph_id])
+    except Exception:
+        return False
+    if not advances:
+        return False
+    advance = advances[0]
+    return bool(advance.x() or advance.y())
+
+
+def _glyph_is_renderable(raw_font: QRawFont, glyph_id: int, cdpt: str = '') -> bool:
+    if not glyph_id:
+        return False
+    if cdpt and cdpt.isspace() and _glyph_has_advance(raw_font, glyph_id):
+        # Spaces usually have a valid advance but no outline/alpha bitmap.
+        return True
     try:
         if not raw_font.pathForGlyph(glyph_id).isEmpty():
             return True
@@ -1333,7 +1349,7 @@ def _resolve_glyph_spec(cdpt: str, font_size: int) -> Tuple[str, int]:
             continue
         glyph_indexes = raw_font.glyphIndexesForString(cdpt)
         glyph_id = glyph_indexes[0] if glyph_indexes else 0
-        if _glyph_is_renderable(raw_font, glyph_id):
+        if _glyph_is_renderable(raw_font, glyph_id, cdpt):
             return font_path, int(glyph_id)
 
         if i == 0 and glyph_id != 0:

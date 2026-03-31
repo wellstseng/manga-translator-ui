@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.app_version import format_version_label
 from utils.resource_helper import resource_path
 from utils.wheel_filter import NoWheelComboBox as QComboBox
 from widgets.file_list_view import FileListView
@@ -151,9 +152,14 @@ def create_left_sidebar(self) -> QWidget:
     sidebar_layout.setContentsMargins(12, 14, 12, 14)
     sidebar_layout.setSpacing(6)
 
-    self.sidebar_brand_label = QLabel("Manga Translator")
+    self.sidebar_brand_label = QLabel(self._t("Manga Translator"))
     self.sidebar_brand_label.setObjectName("sidebar_brand")
     sidebar_layout.addWidget(self.sidebar_brand_label)
+
+    self.sidebar_version_label = QLabel(format_version_label(getattr(self, "app_version", None)))
+    self.sidebar_version_label.setObjectName("sidebar_version")
+    self.sidebar_version_label.setVisible(bool(self.sidebar_version_label.text()))
+    sidebar_layout.addWidget(self.sidebar_version_label)
 
     self.sidebar_divider_top = QFrame()
     self.sidebar_divider_top.setFrameShape(QFrame.Shape.HLine)

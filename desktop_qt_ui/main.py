@@ -35,6 +35,7 @@ if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
 from main_window import MainWindow
 from PyQt6.QtWidgets import QApplication
 from services import init_services
+from utils.app_version import get_app_version
 from utils.resource_helper import iter_existing_resource_paths, load_icon_from_resources
 from widgets.themed_message_box import install_themed_message_boxes
 
@@ -270,6 +271,10 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Manga Translator")
     app.setOrganizationName("Manga Translator")
+    app_version = get_app_version()
+    if app_version != "unknown":
+        app.setApplicationVersion(app_version)
+        logging.info(f"UI version: {app_version}")
     install_themed_message_boxes()
     
     # 设置 Qt 异常处理钩子（捕获信号槽中的异常）

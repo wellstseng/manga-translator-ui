@@ -48,7 +48,13 @@ def generate_main_view_style(theme: str = "dark") -> str:
             color: {c["text_brand"]};
             font-size: 17px;
             font-weight: 800;
-            padding: 8px 6px 10px 6px;
+            padding: 8px 6px 2px 6px;
+        }}
+        #sidebar_version {{
+            color: {c["text_sidebar_group"]};
+            font-size: 11px;
+            font-weight: 600;
+            padding: 0 6px 8px 6px;
         }}
         #sidebar_divider {{
             background: {c["divider_sidebar"]};

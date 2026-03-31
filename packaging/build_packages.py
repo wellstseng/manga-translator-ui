@@ -55,6 +55,44 @@ class Builder:
         self.app_version = app_version.lstrip('v') if app_version else None
         self.version_file = Path("packaging/VERSION")
 
+    def get_effective_version(self):
+        """获取当前构建应使用的版本号。"""
+        if self.app_version:
+            return self.app_version.strip()
+
+        try:
+            if self.version_file.exists():
+                stored_version = self.version_file.read_text(encoding="utf-8").strip()
+                if stored_version:
+                    return stored_version.lstrip("v")
+        except OSError as exc:
+            print(f"Warning: failed to read version file '{self.version_file}': {exc}")
+        return None
+
+    def sync_version_file(self):
+        """将传入的构建版本写回 packaging/VERSION，便于本地构建与调试。"""
+        effective_version = self.get_effective_version()
+        if not effective_version:
+            print("Warning: no application version available.")
+            return None
+
+        try:
+            self.version_file.write_text(f"{effective_version}\n", encoding="utf-8")
+            print(f"Synced version file: {self.version_file} -> {effective_version}")
+        except OSError as exc:
+            print(f"Warning: failed to write version file '{self.version_file}': {exc}")
+        return effective_version
+
+    def write_runtime_version_file(self, dist_dir, app_version):
+        """将版本号写入运行时产物，供 Qt 打包版启动时显示。"""
+        if not app_version:
+            return
+
+        runtime_version_file = dist_dir / "_internal" / "VERSION"
+        runtime_version_file.parent.mkdir(parents=True, exist_ok=True)
+        runtime_version_file.write_text(f"{app_version}\n", encoding="utf-8")
+        print(f"Created runtime version file at: {runtime_version_file}")
+
     def build_executables(self, version_type):
         """使用 PyInstaller 构建指定版本 (cpu 或 gpu)"""
         print("=" * 60)
@@ -94,10 +132,12 @@ class Builder:
 
         # Create build_info.json
         dist_dir = Path("dist") / f"manga-translator-{version_type}"
+        app_version = self.get_effective_version()
+        self.write_runtime_version_file(dist_dir, app_version)
         build_info_path = dist_dir / "build_info.json"
         print(f"Creating build info file at: {build_info_path}")
         with open(build_info_path, "w", encoding="utf-8") as f:
-            json.dump({"variant": version_type}, f, indent=2)
+            json.dump({"variant": version_type, "version": app_version}, f, indent=2)
 
         print(f"{version_type.upper()} build completed!")
         return True
@@ -116,6 +156,7 @@ def main():
         parser.error("the following arguments are required: version")
 
     builder = Builder(args.version)
+    builder.sync_version_file()
 
     print(f"--- Starting build process for version {args.version} ---")
 

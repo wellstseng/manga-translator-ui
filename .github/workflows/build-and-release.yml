@@ -178,6 +178,8 @@ jobs:
     - name: Bundle extra directories into _internal
       run: |
         echo "Bundling extra directories into _internal..."
+        APP_VERSION="${GITHUB_REF_NAME#v}"
+        echo "Embedding app version: ${APP_VERSION}"
         mkdir -p dist/manga-translator-cpu/_internal
         mkdir -p dist/manga-translator-gpu/_internal
         
@@ -188,7 +190,7 @@ jobs:
         cp -r doc dist/manga-translator-cpu/_internal/
         mkdir -p dist/manga-translator-cpu/_internal/desktop_qt_ui
         cp -r desktop_qt_ui/locales dist/manga-translator-cpu/_internal/desktop_qt_ui/locales
-        cp packaging/VERSION dist/manga-translator-cpu/_internal/
+        printf '%s\n' "$APP_VERSION" > dist/manga-translator-cpu/_internal/VERSION
         
         cp -r examples dist/manga-translator-gpu/_internal/
         cp -r fonts dist/manga-translator-gpu/_internal/
@@ -197,7 +199,7 @@ jobs:
         cp -r doc dist/manga-translator-gpu/_internal/
         mkdir -p dist/manga-translator-gpu/_internal/desktop_qt_ui
         cp -r desktop_qt_ui/locales dist/manga-translator-gpu/_internal/desktop_qt_ui/locales
-        cp packaging/VERSION dist/manga-translator-gpu/_internal/
+        printf '%s\n' "$APP_VERSION" > dist/manga-translator-gpu/_internal/VERSION
 
     - name: Create Release Archives using 7-Zip with Splitting
       run: |

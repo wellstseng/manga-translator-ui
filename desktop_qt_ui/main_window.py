@@ -11,6 +11,7 @@ from services import (
     get_state_manager,
 )
 from theme_registry import THEME_OPTIONS
+from utils.app_version import format_app_title, get_app_version
 from widgets.themed_message_box import show_error_dialog
 
 
@@ -24,10 +25,11 @@ class MainWindow(QMainWindow):
 
         self.logger = get_logger(__name__)
         self.i18n = get_i18n_manager()
+        self.app_version = get_app_version()
         self._qt_translator = None
         self._apply_qt_translator(self.i18n.get_current_locale() if self.i18n else "en_US")
         
-        self.setWindowTitle(self._t("Manga Translator"))
+        self._update_window_title()
         self.resize(1300, 800) # 设置默认窗口大小（增加20像素）
         self.setMinimumSize(800, 600) # 设置最小窗口大小
         # 不设置最大大小，允许无限制调整
@@ -64,6 +66,10 @@ class MainWindow(QMainWindow):
         if self.i18n:
             return self.i18n.translate(key, **kwargs)
         return key
+
+    def _update_window_title(self):
+        """更新窗口标题，保持标题与版本号同步。"""
+        self.setWindowTitle(format_app_title(self._t("Manga Translator"), self.app_version))
 
     def _setup_logic_and_models(self):
         """实例化所有逻辑和数据模型"""
@@ -417,8 +423,7 @@ class MainWindow(QMainWindow):
     
     def _refresh_ui_texts(self):
         """刷新UI文本"""
-        # 更新窗口标题
-        self.setWindowTitle(self._t("Manga Translator"))
+        self._update_window_title()
         self._refresh_action_texts()
         
         # 刷新主视图的所有文本

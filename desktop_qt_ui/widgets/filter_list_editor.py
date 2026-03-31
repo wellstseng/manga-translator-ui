@@ -98,6 +98,32 @@ def _dialog_stylesheet() -> str:
         QPlainTextEdit:focus {{
             border-color: {t["border_focus"]};
         }}
+        QMenu {{
+            background: {t["bg_dropdown"]};
+            background-color: {t["bg_dropdown"]};
+            color: {t["text_accent"]};
+            border: 1px solid {t["border_card"]};
+            border-radius: 10px;
+            padding: 6px 4px;
+        }}
+        QMenu::item {{
+            background: transparent;
+            background-color: transparent;
+            color: {t["text_accent"]};
+            padding: 7px 16px;
+            margin: 1px 4px;
+            border-radius: 6px;
+        }}
+        QMenu::item:selected {{
+            background: {t["tab_hover"]};
+            background-color: {t["tab_hover"]};
+            color: {t["text_bright"]};
+        }}
+        QMenu::separator {{
+            height: 1px;
+            margin: 5px 10px;
+            background: {t["divider_sub_line"]};
+        }}
         QTabWidget::pane {{
             border: 1px solid {t["border"]};
             border-radius: 10px;

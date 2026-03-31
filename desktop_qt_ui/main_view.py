@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from services import get_config_service, get_i18n_manager
+from utils.app_version import format_version_label, get_app_version
 
 
 class MainView(QWidget):
@@ -96,6 +97,7 @@ class MainView(QWidget):
         self.controller = controller
         self.config_service = get_config_service()
         self.i18n = get_i18n_manager()
+        self.app_version = get_app_version()
         self.env_widgets = {}
         self._env_debounce_timer = QTimer(self)
         self._env_debounce_timer.setSingleShot(True)
@@ -177,6 +179,12 @@ class MainView(QWidget):
         """刷新所有UI文本（用于语言切换）。"""
         self.refresh_tab_titles()
 
+        if hasattr(self, "sidebar_brand_label"):
+            self.sidebar_brand_label.setText(self._t("Manga Translator"))
+        if hasattr(self, "sidebar_version_label"):
+            version_text = format_version_label(self.app_version)
+            self.sidebar_version_label.setText(version_text)
+            self.sidebar_version_label.setVisible(bool(version_text))
         if hasattr(self, "sidebar_start_label"):
             self.sidebar_start_label.setText(self._t("Start Translation"))
         if hasattr(self, "sidebar_settings_label"):
