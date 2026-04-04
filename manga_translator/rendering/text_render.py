@@ -297,6 +297,24 @@ def add_color(bw_char_map, color, stroke_char_map, stroke_color):
     return bg
 
 
+def _bootstrap_qt_fontdir_for_offscreen() -> None:
+    """Help Qt's offscreen/freetype font database find bundled fonts.
+
+    Qt's offscreen plugin may rely on QT_QPA_FONTDIR or Qt6/lib/fonts. Our
+    packaged fonts live under the project fonts/ directory, so expose that as a
+    default font directory when running in offscreen mode and the caller did not
+    already provide one.
+    """
+    if os.environ.get('QT_QPA_FONTDIR'):
+        return
+    if os.environ.get('QT_QPA_PLATFORM') != 'offscreen':
+        return
+    font_dir = os.path.join(BASE_PATH, 'fonts')
+    if os.path.isdir(font_dir):
+        os.environ['QT_QPA_FONTDIR'] = font_dir
+        logger.info('Using bundled fonts for Qt offscreen mode: %s', font_dir)
+
+
 def _ensure_qt_runtime():
     global _qt_runtime_app
     app = QGuiApplication.instance()
@@ -306,6 +324,7 @@ def _ensure_qt_runtime():
         app = QGuiApplication.instance()
         if app is None:
             os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+            _bootstrap_qt_fontdir_for_offscreen()
             _qt_runtime_app = QGuiApplication([])
             return _qt_runtime_app
         return app
