@@ -11,6 +11,15 @@ from .graphics_items import RegionTextItem
 
 
 class GraphicsViewInputMixin:
+    def _region_item_at_view_pos(self, view_pos):
+        item_at_pos = self.itemAt(view_pos)
+        check_item = item_at_pos
+        while check_item:
+            if isinstance(check_item, RegionTextItem):
+                return check_item
+            check_item = check_item.parentItem()
+        return None
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._emit_view_state_changed()
@@ -59,17 +68,21 @@ class GraphicsViewInputMixin:
                 event.modifiers(),
             )
             super().mousePressEvent(dummy_event)
+        elif event.button() == Qt.MouseButton.RightButton:
+            clicked_region_item = self._region_item_at_view_pos(event.pos())
+            if clicked_region_item is not None:
+                ctrl_pressed = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
+                if not clicked_region_item.isSelected():
+                    if not ctrl_pressed:
+                        self.scene.clearSelection()
+                    clicked_region_item.setSelected(True)
+                event.accept()
+                return
+            super().mousePressEvent(event)
         elif event.button() == Qt.MouseButton.LeftButton:
             item_at_pos = self.itemAt(event.pos())
 
-            clicked_region_item = False
-            if item_at_pos:
-                check_item = item_at_pos
-                while check_item:
-                    if isinstance(check_item, RegionTextItem):
-                        clicked_region_item = True
-                        break
-                    check_item = check_item.parentItem()
+            clicked_region_item = self._region_item_at_view_pos(event.pos()) is not None
 
             if item_at_pos is None or item_at_pos == self._image_item:
                 self.selection_manager.start_box_select(self.mapToScene(event.pos()))
@@ -422,9 +435,14 @@ class GraphicsViewInputMixin:
             self._emit_view_state_changed()
 
     def contextMenuEvent(self, event):
+        clicked_region_item = self._region_item_at_view_pos(event.pos())
         selected_regions = self.model.get_selection()
         selection_count = len(selected_regions)
         menu = QMenu(self)
+
+        if clicked_region_item is not None and clicked_region_item.isSelected() and selection_count == 1:
+            menu.addAction("⤾ 设置旋转角度", clicked_region_item._show_angle_input_dialog)
+            menu.addSeparator()
 
         if selection_count > 0:
             menu.addAction("🔍 OCR识别选中项", self._ocr_selected_regions)
