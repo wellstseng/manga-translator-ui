@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -101,6 +102,7 @@ class PropertyPanel(QWidget):
     stroke_width_changed = pyqtSignal(int, float)
     line_spacing_changed = pyqtSignal(int, float)
     letter_spacing_changed = pyqtSignal(int, float)
+    angle_changed = pyqtSignal(int, float)
     font_family_changed = pyqtSignal(int, str)  # New signal for font family
     alignment_changed = pyqtSignal(int, str)
     direction_changed = pyqtSignal(int, str)
@@ -483,7 +485,6 @@ class PropertyPanel(QWidget):
         style_layout.addRow(self.stroke_color_label, self.stroke_color_picker)
 
         # Stroke width (描边宽度)
-        from PyQt6.QtWidgets import QDoubleSpinBox
         stroke_width_layout = QHBoxLayout()
         stroke_width_layout.setContentsMargins(0, 0, 0, 0)
         self.stroke_width_spinbox = QDoubleSpinBox()
@@ -520,6 +521,20 @@ class PropertyPanel(QWidget):
         letter_spacing_layout.addWidget(self.letter_spacing_spinbox)
         self.letter_spacing_label = QLabel(self._t("Letter Spacing:"))
         style_layout.addRow(self.letter_spacing_label, letter_spacing_layout)
+
+        angle_layout = QHBoxLayout()
+        angle_layout.setContentsMargins(0, 0, 0, 0)
+        self.angle_spinbox = QDoubleSpinBox()
+        self.angle_spinbox.setRange(-9999.0, 9999.0)
+        self.angle_spinbox.setSingleStep(1.0)
+        self.angle_spinbox.setDecimals(1)
+        self.angle_spinbox.setKeyboardTracking(False)
+        self.angle_spinbox.setSuffix("°")
+        self.angle_spinbox.setValue(0.0)
+        self.angle_spinbox.setMaximumWidth(110)
+        angle_layout.addWidget(self.angle_spinbox)
+        self.angle_style_label = QLabel(self._t("Angle:"))
+        style_layout.addRow(self.angle_style_label, angle_layout)
         
         # Alignment and direction
         self.alignment_combo = QComboBox()
@@ -602,6 +617,7 @@ class PropertyPanel(QWidget):
         self.stroke_width_spinbox.valueChanged.connect(self._on_stroke_width_changed)
         self.line_spacing_spinbox.valueChanged.connect(self._on_line_spacing_changed)
         self.letter_spacing_spinbox.valueChanged.connect(self._on_letter_spacing_changed)
+        self.angle_spinbox.valueChanged.connect(self._on_angle_changed)
         self.style_preset_combo.activated.connect(self._on_style_preset_activated)
         self.save_style_preset_button.clicked.connect(self._on_save_style_preset_clicked)
         self.delete_style_preset_button.clicked.connect(self._on_delete_style_preset_clicked)
@@ -757,6 +773,8 @@ class PropertyPanel(QWidget):
             self.line_spacing_label.setText(self._t("Line Spacing:"))
         if hasattr(self, 'letter_spacing_label'):
             self.letter_spacing_label.setText(self._t("Letter Spacing:"))
+        if hasattr(self, 'angle_style_label'):
+            self.angle_style_label.setText(self._t("Angle:"))
         if hasattr(self, 'alignment_label'):
             self.alignment_label.setText(self._t("Alignment:"))
         if hasattr(self, 'direction_label'):
@@ -1301,6 +1319,7 @@ class PropertyPanel(QWidget):
             self.stroke_width_spinbox.setValue(0.07)  # 重置为默认值
             self.line_spacing_spinbox.setValue(1.0)  # 重置为默认值
             self.letter_spacing_spinbox.setValue(1.0)  # 重置为默认值
+            self.angle_spinbox.setValue(0.0)
             default_color = self.config_service.get_config().render.font_color or "#000000"
             self.font_color_picker.reset(default_color)
             self.stroke_color_picker.reset("#ffffff")
@@ -1395,6 +1414,7 @@ class PropertyPanel(QWidget):
 
             letter_spacing = region_data.get("letter_spacing", 1.0)
             self.letter_spacing_spinbox.setValue(letter_spacing if letter_spacing is not None else 1.0)
+            self.angle_spinbox.setValue(float(region_data.get("angle", 0.0) or 0.0))
             
             self._set_font_family_combo_value(region_data.get("font_path", ""))
             self.alignment_combo.setCurrentText(self._alignment_text_for_value(region_data.get("alignment", "auto")))
@@ -1618,6 +1638,13 @@ class PropertyPanel(QWidget):
         selected_indices = self.model.get_selection()
         for region_index in selected_indices:
             self.letter_spacing_changed.emit(region_index, value)
+
+    def _on_angle_changed(self, value):
+        if self.block_updates:
+            return
+        selected_indices = self.model.get_selection()
+        for region_index in selected_indices:
+            self.angle_changed.emit(region_index, float(value))
 
     def _on_mask_tool_changed(self, button):
         if button == self.select_button:

@@ -42,7 +42,6 @@ from PyQt6.QtWidgets import (
     QGraphicsScene,
     QGraphicsSceneMouseEvent,
     QGraphicsSimpleTextItem,
-    QInputDialog,
     QStyle,
 )
 
@@ -752,79 +751,6 @@ class RegionTextItem(QGraphicsItemGroup):
         self._guide_lines.clear()
 
     # ------------------------------------------------------------------
-    # 右键自定义角度
-    # ------------------------------------------------------------------
-
-    def _show_angle_input_dialog(self):
-        """弹出对话框让用户输入自定义旋转角度。"""
-        view = self._primary_view()
-        if view is None:
-            return
-        current_angle = self.rotation_angle % 360
-        if current_angle > 180:
-            current_angle -= 360
-        angle, ok = QInputDialog.getDouble(
-            view, "设置旋转角度", "角度 (度)：",
-            current_angle, -360.0, 360.0, 1,
-        )
-        if ok:
-            self._apply_custom_rotation(angle)
-
-    def _apply_custom_rotation(self, target_angle: float):
-        """应用用户输入的自定义角度。"""
-        pivot_local = self._rotation_pivot_local()
-        pivot_scene = self.mapToScene(pivot_local)
-
-        self.setRotation(target_angle)
-        self.rotation_angle = float(target_angle)
-
-        theta = np.radians(target_angle)
-        cos_t, sin_t = np.cos(theta), np.sin(theta)
-        px, py = pivot_local.x(), pivot_local.y()
-        self.setPos(QPointF(
-            pivot_scene.x() - (px * cos_t - py * sin_t),
-            pivot_scene.y() - (px * sin_t + py * cos_t),
-        ))
-        self.visual_center = QPointF(self.pos())
-
-        old_center = self.geo.center
-        if not (isinstance(old_center, (list, tuple)) and len(old_center) >= 2):
-            old_center = [self.visual_center.x(), self.visual_center.y()]
-        delta_x = float(self.pos().x()) - float(old_center[0])
-        delta_y = float(self.pos().y()) - float(old_center[1])
-
-        new_lines = []
-        for poly in self.region_data.get("lines", []):
-            new_poly = []
-            for p in poly:
-                if isinstance(p, (list, tuple)) and len(p) >= 2:
-                    new_poly.append([float(p[0]) + delta_x, float(p[1]) + delta_y])
-            if new_poly:
-                new_lines.append(new_poly)
-
-        new_cx, new_cy = float(self.pos().x()), float(self.pos().y())
-        self.visual_center = QPointF(new_cx, new_cy)
-        self.geo.center = [new_cx, new_cy]
-        self.geo.angle = float(target_angle)
-        if new_lines:
-            self.geo.lines = new_lines
-        self.geo._rebuild_polygons_local()
-        if not self.geo.has_custom_white_frame:
-            self.geo._auto_update_white_frame()
-
-        new_data = build_rotate_region_data(
-            self.region_data, target_angle,
-            new_center=[new_cx, new_cy],
-            new_lines=new_lines or None,
-        )
-        self._commit_region_data(new_data)
-        self._in_callback = True
-        try:
-            self.geometry_callback(self.region_index, new_data)
-        finally:
-            self._in_callback = False
-
-    # ------------------------------------------------------------------
     # 手柄命中检测
     # ------------------------------------------------------------------
 
@@ -965,17 +891,7 @@ class RegionTextItem(QGraphicsItemGroup):
                     self._reset_interaction_state()
                 event.accept()
                 return
-            elif event.button() == Qt.MouseButton.RightButton:
-                if self.isSelected():
-                    handle, _ = self._get_handle_at(local_pos)
-                    if handle == "rotate":
-                        self._show_angle_input_dialog()
-                        event.accept()
-                        return
-                super().mousePressEvent(event)
-                return
-            else:
-                super().mousePressEvent(event)
+            super().mousePressEvent(event)
         except Exception as e:
             logger.error(f"[RegionTextItem] mousePressEvent: {e}\n{traceback.format_exc()}")
 

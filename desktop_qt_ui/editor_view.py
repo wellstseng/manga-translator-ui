@@ -312,6 +312,7 @@ class EditorView(QWidget):
         self.property_panel.stroke_width_changed.connect(self.controller.update_stroke_width)
         self.property_panel.line_spacing_changed.connect(self.controller.update_line_spacing)
         self.property_panel.letter_spacing_changed.connect(self.controller.update_letter_spacing)
+        self.property_panel.angle_changed.connect(self.controller.update_angle)
         self.property_panel.font_family_changed.connect(self.controller.update_font_family)
         self.property_panel.alignment_changed.connect(self.controller.update_alignment)
         self.property_panel.direction_changed.connect(self.controller.update_direction)

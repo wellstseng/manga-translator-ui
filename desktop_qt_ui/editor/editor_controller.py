@@ -5,6 +5,8 @@ from typing import Optional
 
 import numpy as np
 from editor.commands import UpdateRegionCommand
+from editor.geometry_commit_pipeline import build_rotate_region_data
+from editor.region_geometry_state import RegionGeometryState
 from PIL import Image
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from services import (
@@ -716,6 +718,62 @@ class EditorController(QObject):
             description=f"Update Letter Spacing Region {region_index}",
             current_value=current_value,
         )
+
+    @pyqtSlot(int, float)
+    def update_angle(self, region_index: int, value: float):
+        old_region_data = self._get_region_by_index(region_index)
+        if not old_region_data:
+            return
+
+        old_region_data = self._merge_live_geometry_state(region_index, old_region_data)
+        target_angle = float(value)
+        current_angle = float(old_region_data.get("angle", 0.0) or 0.0)
+        if np.isclose(current_angle, target_angle, atol=1e-6):
+            return
+
+        geo = RegionGeometryState.from_region_data(old_region_data)
+        wf_local = geo.white_frame_local
+        if wf_local is not None and len(wf_local) == 4:
+            left, top, right, bottom = wf_local
+            pivot_lx = (left + right) / 2.0
+            pivot_ly = (top + bottom) / 2.0
+        else:
+            pivot_lx = 0.0
+            pivot_ly = 0.0
+
+        pivot_scene_x, pivot_scene_y = geo.local_to_world(pivot_lx, pivot_ly)
+        theta = np.radians(target_angle)
+        cos_t, sin_t = np.cos(theta), np.sin(theta)
+        new_cx = pivot_scene_x - (pivot_lx * cos_t - pivot_ly * sin_t)
+        new_cy = pivot_scene_y - (pivot_lx * sin_t + pivot_ly * cos_t)
+
+        old_center = geo.center if len(geo.center) >= 2 else [new_cx, new_cy]
+        delta_x = float(new_cx) - float(old_center[0])
+        delta_y = float(new_cy) - float(old_center[1])
+
+        new_lines = []
+        for poly in old_region_data.get("lines", []):
+            new_poly = []
+            for point in poly:
+                if isinstance(point, (list, tuple)) and len(point) >= 2:
+                    new_poly.append([float(point[0]) + delta_x, float(point[1]) + delta_y])
+            if new_poly:
+                new_lines.append(new_poly)
+
+        new_region_data = build_rotate_region_data(
+            old_region_data,
+            target_angle,
+            new_center=[new_cx, new_cy],
+            new_lines=new_lines or None,
+        )
+        command = self._build_region_update_command(
+            region_index=region_index,
+            old_data=old_region_data,
+            new_data=new_region_data,
+            description=f"Update Rotation Region {region_index}",
+            merge_key=f"region:{region_index}:angle",
+        )
+        self.execute_command(command)
 
     @pyqtSlot(int, str)
     def update_font_family(self, region_index: int, font_filename: str):

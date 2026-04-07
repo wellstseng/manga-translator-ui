@@ -334,6 +334,147 @@ def _select_preserved_line_layout_font(
     return max(base_font, line_font), line_font
 
 
+def _solve_unified_no_br_layout(
+    text: str,
+    render_horizontally: bool,
+    target_font_size: int,
+    bubble_width: float,
+    bubble_height: float,
+    layout_min_font_size: int,
+    line_spacing_multiplier: float,
+    letter_spacing_multiplier: float,
+    config: Config = None,
+    target_lang: str = None,
+    max_font_size: Optional[int] = None,
+) -> Tuple[str, int, float, float, int]:
+    """Shared no-BR line-break solver for strict, smart_scaling, and balloon_fill."""
+    safe_target_font_size = max(int(target_font_size), int(layout_min_font_size), 1)
+    safe_max_font_size = max(
+        safe_target_font_size,
+        int(max_font_size) if isinstance(max_font_size, (int, float)) else safe_target_font_size,
+    )
+    safe_bubble_width = float(bubble_width) if isinstance(bubble_width, (int, float)) and bubble_width > 0 else 1.0
+    safe_bubble_height = float(bubble_height) if isinstance(bubble_height, (int, float)) and bubble_height > 0 else 1.0
+
+    if render_horizontally:
+        total_width = text_render.get_string_width(
+            safe_target_font_size,
+            text,
+            letter_spacing=letter_spacing_multiplier,
+        )
+        spacing_y = int(safe_target_font_size * 0.01 * line_spacing_multiplier)
+        ratio = safe_bubble_width / safe_bubble_height if safe_bubble_height > 0 else 1.0
+
+        a = safe_target_font_size + spacing_y
+        b = -spacing_y
+        c = -total_width / ratio if ratio > 0 else -total_width
+
+        discriminant = b * b - 4 * a * c
+        if discriminant >= 0 and a > 0:
+            n_float = (-b + np.sqrt(discriminant)) / (2 * a)
+            n_floor = max(1, int(np.floor(n_float)))
+            n_ceil = max(1, int(np.ceil(n_float)))
+        else:
+            n_floor = n_ceil = 1
+
+        def calc_max_font_horizontal(n: int, total_w: float, bw: float, bh: float, lsm: float, target_fs: int) -> int:
+            height_factor = n + (n - 1) * 0.01 * lsm
+            max_by_height = int(bh / height_factor) if height_factor > 0 else target_fs
+            max_by_width = int(bw * n * target_fs / total_w) if total_w > 0 else target_fs
+            return min(max_by_height, max_by_width)
+
+        font_floor = calc_max_font_horizontal(
+            n_floor, total_width, safe_bubble_width, safe_bubble_height, line_spacing_multiplier, safe_target_font_size
+        )
+        font_ceil = calc_max_font_horizontal(
+            n_ceil, total_width, safe_bubble_width, safe_bubble_height, line_spacing_multiplier, safe_target_font_size
+        )
+    else:
+        total_height = text_render.get_string_height(
+            safe_target_font_size,
+            text,
+            letter_spacing=letter_spacing_multiplier,
+        )
+        spacing_x = int(safe_target_font_size * 0.2 * line_spacing_multiplier)
+        ratio = safe_bubble_width / safe_bubble_height if safe_bubble_height > 0 else 1.0
+
+        a = safe_target_font_size + spacing_x
+        b = -spacing_x
+        c = -total_height * ratio
+
+        discriminant = b * b - 4 * a * c
+        if discriminant >= 0 and a > 0:
+            n_float = (-b + np.sqrt(discriminant)) / (2 * a)
+            n_floor = max(1, int(np.floor(n_float)))
+            n_ceil = max(1, int(np.ceil(n_float)))
+        else:
+            n_floor = n_ceil = 1
+
+        def calc_max_font_vertical(n: int, total_h: float, bw: float, bh: float, lsm: float, target_fs: int) -> int:
+            width_factor = n + (n - 1) * 0.2 * lsm
+            max_by_width = int(bw / width_factor) if width_factor > 0 else target_fs
+            max_by_height = int(bh * n * target_fs / total_h) if total_h > 0 else target_fs
+            return min(max_by_width, max_by_height)
+
+        font_floor = calc_max_font_vertical(
+            n_floor, total_height, safe_bubble_width, safe_bubble_height, line_spacing_multiplier, safe_target_font_size
+        )
+        font_ceil = calc_max_font_vertical(
+            n_ceil, total_height, safe_bubble_width, safe_bubble_height, line_spacing_multiplier, safe_target_font_size
+        )
+
+    if font_floor >= font_ceil:
+        seed_segments = n_floor
+        seed_font_size = font_floor
+    else:
+        seed_segments = n_ceil
+        seed_font_size = font_ceil
+
+    seed_font_size = min(seed_font_size, safe_target_font_size)
+    seed_font_size = max(seed_font_size, int(layout_min_font_size), 1)
+
+    no_br_result = solve_no_br_layout(
+        text=text,
+        horizontal=render_horizontally,
+        seed_segments=seed_segments,
+        seed_font_size=seed_font_size,
+        bubble_width=safe_bubble_width,
+        bubble_height=safe_bubble_height,
+        min_font_size=layout_min_font_size,
+        max_font_size=safe_max_font_size,
+        line_spacing_multiplier=line_spacing_multiplier,
+        letter_spacing_multiplier=letter_spacing_multiplier,
+        target_lang=target_lang,
+        config=config,
+        adjust_font_size=False,
+    )
+    text_with_br = no_br_result.text_with_br
+    layout_font_size, _ = _select_preserved_line_layout_font(
+        base_font_size=seed_font_size,
+        width=safe_bubble_width,
+        height=safe_bubble_height,
+        text=text_with_br,
+        is_horizontal=render_horizontally,
+        line_spacing=line_spacing_multiplier,
+        config=config,
+        target_lang=target_lang,
+        letter_spacing=letter_spacing_multiplier,
+    )
+    layout_font_size = max(int(layout_font_size), int(layout_min_font_size), 1)
+    required_width, required_height, n_segments = calc_box_from_font(
+        layout_font_size,
+        text_with_br,
+        render_horizontally,
+        line_spacing_multiplier,
+        config,
+        target_lang,
+        center=None,
+        angle=0,
+        letter_spacing=letter_spacing_multiplier,
+    )
+    return text_with_br, layout_font_size, required_width, required_height, n_segments
+
+
 def calc_box_from_font(font_size: int, text: str, is_horizontal: bool,
                        line_spacing: float = 1.0, config: Config = None,
                        target_lang: str = None, center: tuple = None,
@@ -1411,43 +1552,30 @@ def resize_regions_to_font_size(img: np.ndarray, text_regions: List['TextBlock']
                                 line_layout_max_font_size = int(max(configured_fixed_font_size, layout_min_font_size))
                                 layout_target_font_size = int(max(configured_fixed_font_size, layout_min_font_size))
 
-                            seed_font_size = int(max(min(layout_target_font_size, line_layout_max_font_size), layout_min_font_size))
-                            no_br_result = solve_no_br_layout(
+                            (
+                                region.translation,
+                                unified_layout_font_size,
+                                unified_required_width,
+                                unified_required_height,
+                                unified_n_segments,
+                            ) = _solve_unified_no_br_layout(
                                 text=region.translation,
-                                horizontal=render_horizontally,
-                                seed_segments=0,
-                                seed_font_size=seed_font_size,
+                                render_horizontally=render_horizontally,
+                                target_font_size=layout_target_font_size,
                                 bubble_width=float(line_box_width),
                                 bubble_height=float(line_box_height),
-                                min_font_size=layout_min_font_size,
-                                max_font_size=line_layout_max_font_size,
+                                layout_min_font_size=layout_min_font_size,
                                 line_spacing_multiplier=line_spacing_multiplier,
                                 letter_spacing_multiplier=letter_spacing_multiplier,
-                                target_lang=region.target_lang,
                                 config=config,
-                                adjust_font_size=False,
+                                target_lang=region.target_lang,
+                                max_font_size=line_layout_max_font_size,
                             )
-                            region.translation = no_br_result.text_with_br
-                            line_driven_font_size = max(
-                                int(
-                                    calc_font_from_box(
-                                        width=float(line_box_width),
-                                        height=float(line_box_height),
-                                        text=region.translation,
-                                        is_horizontal=render_horizontally,
-                                        line_spacing=line_spacing_multiplier,
-                                        config=config,
-                                        target_lang=region.target_lang,
-                                        letter_spacing=letter_spacing_multiplier,
-                                    )
-                                ),
-                                layout_min_font_size,
-                            )
-                            layout_target_font_size = max(int(layout_target_font_size), int(line_driven_font_size))
+                            layout_target_font_size = max(int(layout_target_font_size), int(unified_layout_font_size))
                             logger.debug(
-                                f"balloon_fill region {region_idx}: line-driven no_br layout, "
-                                f"result_segments={no_br_result.n_segments}, font={layout_target_font_size}, "
-                                f"required={no_br_result.required_width:.1f}x{no_br_result.required_height:.1f}"
+                                f"balloon_fill region {region_idx}: unified no_br layout, "
+                                f"result_segments={unified_n_segments}, font={layout_target_font_size}, "
+                                f"required={unified_required_width:.1f}x{unified_required_height:.1f}"
                             )
 
                         preferred_font_size = _apply_final_font_constraints(layout_target_font_size, config)
@@ -1595,33 +1723,24 @@ def resize_regions_to_font_size(img: np.ndarray, text_regions: List['TextBlock']
 
                 if not has_br:
                     bubble_width, bubble_height = region.unrotated_size
-                    no_br_result = solve_no_br_layout(
+                    (
+                        region.translation,
+                        layout_font_size,
+                        _required_width,
+                        _required_height,
+                        _n_segments,
+                    ) = _solve_unified_no_br_layout(
                         text=region.translation,
-                        horizontal=render_horizontally,
-                        seed_segments=0,
-                        seed_font_size=target_font_size,
+                        render_horizontally=render_horizontally,
+                        target_font_size=target_font_size,
                         bubble_width=bubble_width,
                         bubble_height=bubble_height,
-                        min_font_size=layout_min_font_size,
-                        max_font_size=target_font_size,
+                        layout_min_font_size=layout_min_font_size,
                         line_spacing_multiplier=line_spacing_multiplier,
-                        target_lang=region.target_lang,
-                        config=config,
                         letter_spacing_multiplier=letter_spacing_multiplier,
-                        adjust_font_size=False,
-                    )
-                    region.translation = no_br_result.text_with_br
-
-                    layout_font_size, line_driven_font_size = _select_preserved_line_layout_font(
-                        base_font_size=target_font_size,
-                        width=float(bubble_width),
-                        height=float(bubble_height),
-                        text=region.translation,
-                        is_horizontal=render_horizontally,
-                        line_spacing=line_spacing_multiplier,
                         config=config,
                         target_lang=region.target_lang,
-                        letter_spacing=letter_spacing_multiplier,
+                        max_font_size=target_font_size,
                     )
                     layout_font_size = max(layout_font_size, min_shrink_font_size)
                     final_font_size = _apply_final_font_constraints(layout_font_size, config)
@@ -1811,207 +1930,29 @@ def resize_regions_to_font_size(img: np.ndarray, text_regions: List['TextBlock']
                                 required_width = target_font_size * n + spacing_x * max(0, n - 1)
                     else:
                         logger.debug(f"[SMART_SCALING] Region {region_idx}: 无BR分支，开始反推断句")
-                        # 无BR：用精确像素反推最优行数/列数
-                        no_br_max_font_size = target_font_size
-
-                        if render_horizontally:
-                            # 横排：计算单行总宽度
-                            total_width = text_render.get_string_width(
-                                target_font_size,
-                                region.translation,
-                                letter_spacing=letter_spacing_multiplier,
-                            )
-                            spacing_y = int(target_font_size * 0.01 * line_spacing_multiplier)
-                            ratio = bubble_width / bubble_height if bubble_height > 0 else 1.0
-
-                            # 二次方程反推行数
-                            a = target_font_size + spacing_y
-                            b = -spacing_y
-                            c = -total_width / ratio if ratio > 0 else -total_width
-
-                            discriminant = b * b - 4 * a * c
-                            if discriminant >= 0 and a > 0:
-                                n_float = (-b + np.sqrt(discriminant)) / (2 * a)
-                                n_floor = max(1, int(np.floor(n_float)))
-                                n_ceil = max(1, int(np.ceil(n_float)))
-                            else:
-                                n_floor = n_ceil = 1
-
-                            # 分别计算两个n对应的最大字体，选字体大的
-                            def calc_max_font_horizontal(n, total_w, bw, bh, lsm, target_fs):
-                                height_factor = n + (n - 1) * 0.01 * lsm
-                                max_by_height = int(bh / height_factor) if height_factor > 0 else target_fs
-                                max_by_width = int(bw * n * target_fs / total_w) if total_w > 0 else target_fs
-                                return min(max_by_height, max_by_width)
-
-                            font_floor = calc_max_font_horizontal(n_floor, total_width, bubble_width, bubble_height, line_spacing_multiplier, target_font_size)
-                            font_ceil = calc_max_font_horizontal(n_ceil, total_width, bubble_width, bubble_height, line_spacing_multiplier, target_font_size)
-
-                            # 选字体大的那个
-                            if font_floor >= font_ceil:
-                                n = n_floor
-                                final_font_size = font_floor
-                            else:
-                                n = n_ceil
-                                final_font_size = font_ceil
-
-                            final_font_size = min(final_font_size, target_font_size)
-                            final_font_size = max(final_font_size, layout_min_font_size)
-
-                            # 用最终字体重新计算精确的required尺寸
-                            final_total_width = text_render.get_string_width(
-                                final_font_size,
-                                region.translation,
-                                letter_spacing=letter_spacing_multiplier,
-                            )
-                            final_spacing_y = int(final_font_size * 0.01 * line_spacing_multiplier)
-                            required_width = final_total_width / n
-                            required_height = n * final_font_size + max(0, n - 1) * final_spacing_y
-
-                            target_font_size = final_font_size
-                            logger.debug(f"[SMART_SCALING DEBUG] No BR Horizontal: n={n}, final_font={final_font_size}, required={required_width:.1f}x{required_height:.1f}")
-
-                            no_br_result = solve_no_br_layout(
-                                text=region.translation,
-                                horizontal=True,
-                                seed_segments=n,
-                                seed_font_size=final_font_size,
-                                bubble_width=bubble_width,
-                                bubble_height=bubble_height,
-                                min_font_size=layout_min_font_size,
-                                max_font_size=no_br_max_font_size,
-                                line_spacing_multiplier=line_spacing_multiplier,
-                                letter_spacing_multiplier=letter_spacing_multiplier,
-                                target_lang=region.target_lang,
-                                config=config,
-                                adjust_font_size=False,
-                            )
-                            region.translation = no_br_result.text_with_br
-                            target_font_size, line_driven_font_size = _select_preserved_line_layout_font(
-                                base_font_size=target_font_size,
-                                width=float(bubble_width),
-                                height=float(bubble_height),
-                                text=region.translation,
-                                is_horizontal=True,
-                                line_spacing=line_spacing_multiplier,
-                                config=config,
-                                target_lang=region.target_lang,
-                                letter_spacing=letter_spacing_multiplier,
-                            )
-                            required_width, required_height, n = calc_box_from_font(
-                                target_font_size,
-                                region.translation,
-                                True,
-                                line_spacing_multiplier,
-                                config,
-                                region.target_lang,
-                                center=None,
-                                angle=0,
-                                letter_spacing=letter_spacing_multiplier,
-                            )
-                            logger.debug(
-                                f"[SMART_SCALING] Region {region_idx}: 横排融合断句后 n={n}, "
-                                f"font={target_font_size}, required={required_width:.1f}x{required_height:.1f}"
-                            )
-                        else: # Vertical
-                            # 竖排：计算单列总高度
-                            total_height = text_render.get_string_height(
-                                target_font_size,
-                                region.translation,
-                                letter_spacing=letter_spacing_multiplier,
-                            )
-                            spacing_x = int(target_font_size * 0.2 * line_spacing_multiplier)
-                            ratio = bubble_width / bubble_height if bubble_height > 0 else 1.0
-
-                            # 二次方程反推列数
-                            a = target_font_size + spacing_x
-                            b = -spacing_x
-                            c = -total_height * ratio
-
-                            discriminant = b * b - 4 * a * c
-                            if discriminant >= 0 and a > 0:
-                                n_float = (-b + np.sqrt(discriminant)) / (2 * a)
-                                n_floor = max(1, int(np.floor(n_float)))
-                                n_ceil = max(1, int(np.ceil(n_float)))
-                            else:
-                                n_floor = n_ceil = 1
-
-                            # 分别计算两个n对应的最大字体，选字体大的
-                            def calc_max_font_vertical(n, total_h, bw, bh, lsm, target_fs):
-                                width_factor = n + (n - 1) * 0.2 * lsm
-                                max_by_width = int(bw / width_factor) if width_factor > 0 else target_fs
-                                max_by_height = int(bh * n * target_fs / total_h) if total_h > 0 else target_fs
-                                return min(max_by_width, max_by_height)
-
-                            font_floor = calc_max_font_vertical(n_floor, total_height, bubble_width, bubble_height, line_spacing_multiplier, target_font_size)
-                            font_ceil = calc_max_font_vertical(n_ceil, total_height, bubble_width, bubble_height, line_spacing_multiplier, target_font_size)
-
-                            # 选字体大的那个
-                            if font_floor >= font_ceil:
-                                n = n_floor
-                                final_font_size = font_floor
-                            else:
-                                n = n_ceil
-                                final_font_size = font_ceil
-
-                            final_font_size = min(final_font_size, target_font_size)
-                            final_font_size = max(final_font_size, layout_min_font_size)
-
-                            # 用最终字体重新计算精确的required尺寸
-                            final_total_height = text_render.get_string_height(
-                                final_font_size,
-                                region.translation,
-                                letter_spacing=letter_spacing_multiplier,
-                            )
-                            final_spacing_x = int(final_font_size * 0.2 * line_spacing_multiplier)
-                            required_height = final_total_height / n
-                            required_width = n * final_font_size + max(0, n - 1) * final_spacing_x
-
-                            target_font_size = final_font_size
-                            logger.debug(f"[SMART_SCALING DEBUG] No BR Vertical: n={n}, final_font={final_font_size}, required={required_width:.1f}x{required_height:.1f}")
-
-                            no_br_result = solve_no_br_layout(
-                                text=region.translation,
-                                horizontal=False,
-                                seed_segments=n,
-                                seed_font_size=final_font_size,
-                                bubble_width=bubble_width,
-                                bubble_height=bubble_height,
-                                min_font_size=layout_min_font_size,
-                                max_font_size=no_br_max_font_size,
-                                line_spacing_multiplier=line_spacing_multiplier,
-                                letter_spacing_multiplier=letter_spacing_multiplier,
-                                target_lang=region.target_lang,
-                                config=config,
-                                adjust_font_size=False,
-                            )
-                            region.translation = no_br_result.text_with_br
-                            target_font_size, line_driven_font_size = _select_preserved_line_layout_font(
-                                base_font_size=target_font_size,
-                                width=float(bubble_width),
-                                height=float(bubble_height),
-                                text=region.translation,
-                                is_horizontal=False,
-                                line_spacing=line_spacing_multiplier,
-                                config=config,
-                                target_lang=region.target_lang,
-                                letter_spacing=letter_spacing_multiplier,
-                            )
-                            required_width, required_height, n = calc_box_from_font(
-                                target_font_size,
-                                region.translation,
-                                False,
-                                line_spacing_multiplier,
-                                config,
-                                region.target_lang,
-                                center=None,
-                                angle=0,
-                                letter_spacing=letter_spacing_multiplier,
-                            )
-                            logger.debug(
-                                f"[SMART_SCALING] Region {region_idx}: 竖排融合断句后 n={n}, "
-                                f"font={target_font_size}, required={required_width:.1f}x{required_height:.1f}"
-                            )
+                        (
+                            region.translation,
+                            target_font_size,
+                            required_width,
+                            required_height,
+                            n,
+                        ) = _solve_unified_no_br_layout(
+                            text=region.translation,
+                            render_horizontally=render_horizontally,
+                            target_font_size=target_font_size,
+                            bubble_width=bubble_width,
+                            bubble_height=bubble_height,
+                            layout_min_font_size=layout_min_font_size,
+                            line_spacing_multiplier=line_spacing_multiplier,
+                            letter_spacing_multiplier=letter_spacing_multiplier,
+                            config=config,
+                            target_lang=region.target_lang,
+                            max_font_size=target_font_size,
+                        )
+                        logger.debug(
+                            f"[SMART_SCALING] Region {region_idx}: 统一断句后 n={n}, "
+                            f"font={target_font_size}, required={required_width:.1f}x{required_height:.1f}"
+                        )
 
                     # Check for overflow in either dimension
                     width_overflow = max(0, required_width - bubble_width)

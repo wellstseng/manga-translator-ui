@@ -435,14 +435,9 @@ class GraphicsViewInputMixin:
             self._emit_view_state_changed()
 
     def contextMenuEvent(self, event):
-        clicked_region_item = self._region_item_at_view_pos(event.pos())
         selected_regions = self.model.get_selection()
         selection_count = len(selected_regions)
         menu = QMenu(self)
-
-        if clicked_region_item is not None and clicked_region_item.isSelected() and selection_count == 1:
-            menu.addAction("⤾ 设置旋转角度", clicked_region_item._show_angle_input_dialog)
-            menu.addSeparator()
 
         if selection_count > 0:
             menu.addAction("🔍 OCR识别选中项", self._ocr_selected_regions)
