@@ -304,12 +304,12 @@ def add_color(bw_char_map, color, stroke_char_map, stroke_color):
     bg[:, :, 3] = stroke_char_map
     
     alpha_f = fg[:, :, 3:4] / 255.0
-    alpha_b = bg[:, :, 3:4] / 255.0
+    alpha_b = bg[y:y+h, x:x+w, 3:4] / 255.0
     
     out_alpha = alpha_f + alpha_b * (1.0 - alpha_f)
     safe_alpha = np.where(out_alpha == 0, 1.0, out_alpha)
     
-    out_rgb = (fg[:, :, :3] * alpha_f + bg[:, :, :3] * alpha_b * (1.0 - alpha_f)) / safe_alpha
+    out_rgb = (fg[:, :, :3] * alpha_f + bg[y:y+h, x:x+w, :3] * alpha_b * (1.0 - alpha_f)) / safe_alpha
     
     bg[y:y+h, x:x+w, :3] = np.clip(out_rgb, 0, 255).astype(np.uint8)
     bg[y:y+h, x:x+w, 3:4] = np.clip(out_alpha * 255.0, 0, 255).astype(np.uint8)
