@@ -124,6 +124,13 @@ _VERTICAL_OPEN_BRACKETS = {'「', '『', '（', '《', '〈', '【', '〔', '［
 _VERTICAL_CLOSE_BRACKETS = {'」', '』', '）', '》', '〉', '】', '〕', '］', '｝', ')', '”', '’', '﹂', '﹄', '︶', '︸', '︺', '︼', '︾', '﹀', '﹈'}
 _VERTICAL_PUNCT_UP = {'。', '．', '，', '、', '·', '：', '；', '！', '？', '︒', '︐', '︑', '︓', '︔', '︕', '︖', '﹅', '﹆'}
 _VERTICAL_COMPACT_SLOT = _VERTICAL_OPEN_BRACKETS | _VERTICAL_CLOSE_BRACKETS | _VERTICAL_PUNCT_UP
+_VERTICAL_HALF_ADVANCE = _VERTICAL_COMPACT_SLOT - {'！', '？', '︕', '︖'}
+
+_VERTICAL_ALIGN_TOP_RIGHT = {'﹁', '﹃'}
+_VERTICAL_ALIGN_BOTTOM_LEFT = {'﹂', '﹄'}
+_VERTICAL_ALIGN_TOP_CENTER = {'︵', '︷', '︹', '︻', '︽', '︿', '﹇'}
+_VERTICAL_ALIGN_BOTTOM_CENTER = {'︶', '︸', '︺', '︼', '︾', '﹀', '﹈'}
+
 _QT_FONT_PROBE_SIZE = 32.0
 _thread_state = threading.local()
 _qt_runtime_lock = threading.Lock()
@@ -929,20 +936,32 @@ def _vertical_base(font_size: int, cdpt: str, letter_spacing: float = 1.0) -> di
     if bitmap is not None and rot == 90:
         bitmap = cv2.rotate(bitmap, cv2.ROTATE_90_CLOCKWISE)
     advance_y = _vertical_ellipsis_advance(glyph, font_size, bitmap) if _is_vertical_ellipsis_char(translated) else (glyph.advance_y if glyph.advance_y > 0 else font_size)
+    if translated in _VERTICAL_HALF_ADVANCE:
+        advance_y = font_size * 0.5
     advance_y = _scale_advance(int(advance_y), letter_spacing)
-    slot_height = min(advance_y, max(1, int(round(font_size * 0.55)))) if translated in _VERTICAL_COMPACT_SLOT else max(1, advance_y)
-    ink_x = 0.0
+    slot_height = advance_y if translated in _VERTICAL_HALF_ADVANCE else max(1, advance_y)
+    ink_x, ink_y = 0.0, 0.0
     ink_w = float(bitmap.shape[1]) if bitmap is not None else 0.0
+    ink_h = float(bitmap.shape[0]) if bitmap is not None else 0.0
     if bitmap is not None:
         rect = _bitmap_ink_rect(bitmap)
         if rect is not None:
-            ink_x, _, ink_w, _ = rect
+            ink_x, ink_y, ink_w, ink_h = rect
     frame_width = max(font_size, int(glyph.advance_x), int(round(ink_w)) if ink_w else 0, 1)
     slot_origin_y = max(0, int(round((advance_y - slot_height) / 2.0)))
-    bitmap_h = 0 if bitmap is None else bitmap.shape[0]
+    
+    # 默认居中对齐真实墨迹（考虑到 ink_y 和 ink_h）
+    y = slot_origin_y + max(0, int(round((slot_height - ink_h) / 2.0))) - ink_y
+    
+    padding = max(1, int(round(font_size * 0.05)))
+    if translated in _VERTICAL_ALIGN_TOP_RIGHT or translated in _VERTICAL_ALIGN_TOP_CENTER:
+        y = padding - ink_y
+    elif translated in _VERTICAL_ALIGN_BOTTOM_LEFT or translated in _VERTICAL_ALIGN_BOTTOM_CENTER:
+        y = advance_y - ink_h - padding - ink_y
+
     base = {
         'translated': translated, 'rot_degree': rot, 'bitmap': bitmap, 'advance_y': int(advance_y),
-        'ink_x': float(ink_x), 'ink_w': float(ink_w), 'y': slot_origin_y + max(0, int(round((slot_height - bitmap_h) / 2.0))),
+        'ink_x': float(ink_x), 'ink_w': float(ink_w), 'y': int(round(y)),
         'frame_width': int(frame_width),
     }
     return _cache_put(state.vertical, key, base, _VERTICAL_CACHE_MAX)
@@ -1040,9 +1059,21 @@ def _build_vertical_layout(font_size: int, line_text: str, border_size: int, str
             laid.append({'kind': kind, 'advance_y': int(value), 'cursor_y': cursor})
             cursor += int(value)
         else:
+            char_t = value['translated']
+            ink_w = value['ink_w']
+            ink_x = value['ink_x']
+            
+            x = round((line_width - ink_w) / 2.0) - ink_x
+            
+            padding = max(1, int(round(font_size * 0.05)))
+            if char_t in _VERTICAL_ALIGN_TOP_RIGHT:
+                x = line_width - ink_w - ink_x - padding
+            elif char_t in _VERTICAL_ALIGN_BOTTOM_LEFT:
+                x = -ink_x + padding
+
             laid.append({
-                'kind': kind, 'translated': value['translated'], 'rot_degree': value['rot_degree'], 'bitmap': value['bitmap'],
-                'cursor_y': cursor, 'x': round((line_width - value['ink_w']) / 2.0) - value['ink_x'], 'y': int(value['y']),
+                'kind': kind, 'translated': char_t, 'rot_degree': value['rot_degree'], 'bitmap': value['bitmap'],
+                'cursor_y': cursor, 'x': int(round(x)), 'y': int(value['y']),
             })
             cursor += int(value['advance_y'])
     return {'width': int(line_width), 'height': max(0, int(cursor)), 'items': laid}
