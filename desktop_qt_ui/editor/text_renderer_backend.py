@@ -113,7 +113,7 @@ def render_text_image_for_region(text_block: TextBlock, dst_points: np.ndarray, 
         
         # 优先使用 render_params 中用户设置的描边颜色
         bg_color = render_params.get('text_stroke_color', bg_color_default)
-        logger.debug(f"[EDITOR RENDER] 描边颜色: text_stroke_color={render_params.get('text_stroke_color')}, bg_color_default={bg_color_default}, 最终使用={bg_color}")
+        logger.info(f"[EDITOR RENDER] 描边颜色: text_stroke_color={render_params.get('text_stroke_color')}, bg_color_default={bg_color_default}, 最终使用={bg_color}")
         
         # 从 render_params 中获取描边宽度
         stroke_width = render_params.get('text_stroke_width', None)

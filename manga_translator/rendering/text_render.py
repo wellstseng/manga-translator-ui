@@ -289,7 +289,7 @@ def should_rotate_horizontal_block_90(content: str) -> bool:
 
 
 def add_color(bw_char_map, color, stroke_char_map, stroke_color):
-    logger.debug(f"[add_color] called with color={color}, stroke_color={stroke_color}")
+    logger.info(f"[add_color] called with color={color}, stroke_color={stroke_color}")
     if bw_char_map.size == 0:
         return np.zeros((bw_char_map.shape[0], bw_char_map.shape[1], 4), dtype=np.uint8)
     x, y, w, h = cv2.boundingRect(bw_char_map if stroke_color is None else stroke_char_map)
@@ -681,7 +681,7 @@ def _rasterize_path(path: QPainterPath) -> Tuple[np.ndarray, int, int]:
 
 
 def _stroke_path(path: QPainterPath, stroke_px: int) -> QPainterPath:
-    logger.debug(f"[_stroke_path] stroke_px={stroke_px}, path.isEmpty()={path.isEmpty()}")
+    logger.info(f"[_stroke_path] stroke_px={stroke_px}, path.isEmpty()={path.isEmpty()}")
     if path.isEmpty() or stroke_px <= 0:
         return QPainterPath()
     stroker = QPainterPathStroker()
