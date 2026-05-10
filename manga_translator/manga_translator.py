@@ -2000,11 +2000,14 @@ class MangaTranslator:
         """
         # 清理输入图像
         if hasattr(ctx, 'input') and ctx.input is not None:
-            if hasattr(ctx.input, 'close'):
-                try:
-                    ctx.input.close()
-                except Exception:
-                    pass
+            if keep_result and hasattr(ctx, 'result') and ctx.input is ctx.result:
+                pass
+            else:
+                if hasattr(ctx.input, 'close'):
+                    try:
+                        ctx.input.close()
+                    except Exception:
+                        pass
             del ctx.input
             ctx.input = None
         
@@ -2068,25 +2071,38 @@ class MangaTranslator:
         
         # 1. 清理原始图片
         if current_batch_images:
-            for i, (image, _) in enumerate(current_batch_images):
-                if hasattr(image, 'close'):
-                    try:
-                        image.close()
-                    except Exception:
-                        pass
-                # 显式删除引用
-                del current_batch_images[i]
+            for image, _ in current_batch_images:
+                is_result = False
+                if keep_results and translated_contexts:
+                    for t_ctx, _ in translated_contexts:
+                        if hasattr(t_ctx, 'result') and t_ctx.result is image:
+                            is_result = True
+                            break
+                if not is_result:
+                    if hasattr(image, 'close'):
+                        try:
+                            image.close()
+                        except Exception:
+                            pass
+            current_batch_images.clear()
         
         # 2. 清理预处理上下文中的输入图像
         if preprocessed_contexts:
             for ctx, _ in preprocessed_contexts:
                 if hasattr(ctx, 'input') and ctx.input is not None:
-                    # 先关闭再删除
-                    if hasattr(ctx.input, 'close'):
-                        try:
-                            ctx.input.close()
-                        except Exception:
-                            pass
+                    is_result = False
+                    if keep_results and translated_contexts:
+                        for t_ctx, _ in translated_contexts:
+                            if hasattr(t_ctx, 'result') and t_ctx.result is ctx.input:
+                                is_result = True
+                                break
+                    if not is_result:
+                        # 先关闭再删除
+                        if hasattr(ctx.input, 'close'):
+                            try:
+                                ctx.input.close()
+                            except Exception:
+                                pass
                     del ctx.input
                     ctx.input = None
             preprocessed_contexts.clear()
