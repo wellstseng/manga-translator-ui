@@ -492,6 +492,9 @@ class EditorController(QObject):
     async def _async_full_inpaint_with_cache(self, mask, generation: int):
         return await self.inpaint_service.async_full_inpaint_with_cache(mask, generation)
 
+    def force_inpaint_stroke(self, stroke_mask: np.ndarray):
+        self.inpaint_service.force_inpaint_stroke(stroke_mask)
+
     @pyqtSlot(str, bool)
     def set_display_mask_type(self, mask_type: str, visible: bool):
         self.inpaint_service.set_display_mask_type(mask_type, visible)

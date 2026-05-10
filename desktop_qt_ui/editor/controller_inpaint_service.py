@@ -149,7 +149,19 @@ class EditorControllerInpaintService:
         except Exception as e:
             self.logger.error(f"Error during async refine and inpaint: {e}")
 
-    async def async_incremental_inpaint(self, current_mask, generation: int):
+    def force_inpaint_stroke(self, stroke_mask: np.ndarray) -> None:
+        if self.controller._suppress_refined_mask_autoinpaint:
+            return
+
+        current_mask = self.model.get_refined_mask()
+        if current_mask is None:
+            return
+
+        generation = self.begin_inpaint_request()
+        future = self.async_service.submit_task(self.async_incremental_inpaint(current_mask, generation, stroke_mask=stroke_mask))
+        self.controller._active_inpaint_future = future
+
+    async def async_incremental_inpaint(self, current_mask, generation: int, stroke_mask: Optional[np.ndarray] = None):
         try:
             if not self.is_inpaint_request_current(generation):
                 return
@@ -159,25 +171,34 @@ class EditorControllerInpaintService:
                 self.logger.warning("Incremental inpainting skipped: missing data.")
                 return
 
-            last_processed_mask = self.get_cached_mask_snapshot()
-            if last_processed_mask is None:
-                await self.async_full_inpaint_with_cache(current_mask, generation)
-                return
-
             current_mask_2d = self.normalize_binary_mask(current_mask)
             if current_mask_2d is None:
                 return
-            if current_mask_2d.shape != last_processed_mask.shape:
-                self.logger.warning(
-                    "Incremental inpainting fell back to full: mask shape changed from %s to %s",
-                    last_processed_mask.shape,
-                    current_mask_2d.shape,
-                )
-                await self.async_full_inpaint_with_cache(current_mask_2d, generation)
-                return
 
-            added_areas = cv2.bitwise_and(current_mask_2d, cv2.bitwise_not(last_processed_mask))
-            removed_areas = cv2.bitwise_and(last_processed_mask, cv2.bitwise_not(current_mask_2d))
+            if stroke_mask is not None:
+                stroke_mask_2d = self.normalize_binary_mask(stroke_mask)
+                if stroke_mask_2d is None:
+                    return
+                added_areas = stroke_mask_2d
+                removed_areas = np.zeros_like(stroke_mask_2d)
+            else:
+                last_processed_mask = self.get_cached_mask_snapshot()
+                if last_processed_mask is None:
+                    await self.async_full_inpaint_with_cache(current_mask, generation)
+                    return
+    
+                if current_mask_2d.shape != last_processed_mask.shape:
+                    self.logger.warning(
+                        "Incremental inpainting fell back to full: mask shape changed from %s to %s",
+                        last_processed_mask.shape,
+                        current_mask_2d.shape,
+                    )
+                    await self.async_full_inpaint_with_cache(current_mask_2d, generation)
+                    return
+    
+                added_areas = cv2.bitwise_and(current_mask_2d, cv2.bitwise_not(last_processed_mask))
+                removed_areas = cv2.bitwise_and(last_processed_mask, cv2.bitwise_not(current_mask_2d))
+
             if not np.any(added_areas) and not np.any(removed_areas):
                 return
 

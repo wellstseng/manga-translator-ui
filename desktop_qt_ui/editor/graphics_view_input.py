@@ -333,25 +333,32 @@ class GraphicsViewInputMixin:
 
         self._clear_preview()
 
-        if old_mask_np is not None and np.array_equal(old_mask_np, new_mask_np):
-            self._reset_drawing_state()
-            return
-        if old_mask_np is None and not np.any(new_mask_np):
-            self._reset_drawing_state()
-            return
-
-        from .commands import MaskEditCommand
-
         controller = self._get_controller()
-        if controller is None:
-            raise RuntimeError("GraphicsView requires an attached controller for mask edits")
+        if not controller:
+            self._reset_drawing_state()
+            return
 
-        command = MaskEditCommand(
-            model=self.model,
-            old_mask=old_mask_np,
-            new_mask=new_mask_np.copy(),
-        )
-        controller.execute_command(command)
+        mask_changed = (old_mask_np is None and np.any(new_mask_np)) or \
+                       (old_mask_np is not None and not np.array_equal(old_mask_np, new_mask_np))
+
+        if mask_changed:
+            from .commands import MaskEditCommand
+
+        if self._active_tool in ["pen", "brush"] and np.any(stroke_mask):
+            if mask_changed:
+                controller._suppress_refined_mask_autoinpaint = True
+                try:
+                    command = MaskEditCommand(model=self.model, old_mask=old_mask_np, new_mask=new_mask_np.copy())
+                    controller.execute_command(command)
+                finally:
+                    controller._suppress_refined_mask_autoinpaint = False
+            
+            controller.force_inpaint_stroke(stroke_mask)
+        else:
+            if mask_changed:
+                command = MaskEditCommand(model=self.model, old_mask=old_mask_np, new_mask=new_mask_np.copy())
+                controller.execute_command(command)
+
         self._reset_drawing_state()
 
     def _reset_drawing_state(self):
