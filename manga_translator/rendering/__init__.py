@@ -105,7 +105,13 @@ def _has_explicit_line_breaks(text: str) -> bool:
     return bool(re.search(r'(\[BR\]|【BR】|<br\s*/?>|\r\n|\r|\n)', str(text or ''), flags=re.IGNORECASE))
 
 
-def _should_apply_default_english_line_break_method(region: TextBlock) -> bool:
+def _should_apply_default_english_line_break_method(region: TextBlock, config: Config = None) -> bool:
+    # 开关开启时，对所有语言生效（强制横排+气泡排版）
+    render_cfg = getattr(config, 'render', None) if config is not None else None
+    bubble_layout = bool(getattr(render_cfg, 'bubble_layout_english', False)) if render_cfg is not None else False
+    if bubble_layout:
+        return not _has_explicit_line_breaks(getattr(region, 'translation', ''))
+    # 默认行为：仅对英文横排生效
     return (
         str(getattr(region, 'target_lang', '') or '').upper() == 'ENG'
         and _resolve_region_render_horizontal(region)
@@ -143,8 +149,16 @@ def _apply_default_english_line_break_method(
     original_img: np.ndarray = None,
     config: Config = None,
 ) -> bool:
-    if not _should_apply_default_english_line_break_method(region):
+    if not _should_apply_default_english_line_break_method(region, config):
         return False
+
+    # 开关开启时，强制横排
+    render_cfg = getattr(config, 'render', None) if config is not None else None
+    bubble_layout = bool(getattr(render_cfg, 'bubble_layout_english', False)) if render_cfg is not None else False
+    if bubble_layout:
+        # 强制设置为横排
+        region._direction = 'horizontal'
+        region.horizontal = True
 
     region_font_path = getattr(region, 'font_path', '') or ''
     resolved_font_path = _resolve_font_path(region_font_path)
@@ -161,7 +175,7 @@ def _apply_default_english_line_break_method(
         letter_spacing=_resolve_letter_spacing_multiplier(region, config),
     )
     if applied:
-        logger.debug("[ENGLISH LINE BREAK] Applied Manga2Eng-style line breaking to default renderer")
+        logger.debug("[BUBBLE LAYOUT] Applied bubble-based line breaking (force horizontal)")
     return applied
 
 

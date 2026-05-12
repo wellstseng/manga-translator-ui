@@ -183,6 +183,8 @@ class RenderConfig(BaseModel):
     """Change text to lowercase"""
     no_hyphenation: bool = False
     """If renderer should be splitting up words using a hyphen character (-)"""
+    bubble_layout_english: bool = False
+    """Enable bubble-based English typesetting (balloon mask line breaking) and force horizontal rendering."""
     font_path: Optional[str] = None
     """Path to font file for rendering. If not specified, uses default font."""
     font_color: Optional[str] = None

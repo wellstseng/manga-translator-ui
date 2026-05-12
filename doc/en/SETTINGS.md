@@ -461,6 +461,13 @@ The original Chinese document grouped the interface into three tabs. In the curr
 - **`Disable Hyphenation` (`no_hyphenation`)**: disable hyphenation-based line breaking.
   - Current UI location: `Settings` -> `Typesetting` -> `Disable Hyphenation`
 
+- **`Bubble Layout (Force Horizontal)` (`bubble_layout_english`)**: enable bubble-shape layout for all languages and force horizontal rendering.
+  - Current UI location: `Settings` -> `Typesetting` -> `Bubble Layout (Force Horizontal)`
+  - Default: disabled (`false`)
+  - English already uses this layout by default; this switch mainly affects Korean, Chinese, and other languages
+  - When enabled: the app uses the balloon mask extracted from the original image to determine line breaks for all languages, and forces horizontal text direction regardless of the original text orientation
+  - Use case: when translating manga into Korean or other languages and you want the text to follow the speech bubble shape with horizontal layout, similar to how English typesetting works
+
 - **`Font Color` (`font_color`)**: font color in hexadecimal, for example `#FFFFFF`.
   - Current UI location: `Settings` -> `Typesetting` -> `Font Color`
 
@@ -856,6 +863,22 @@ Lazy shortcut:
 - Default: `examples/filter_list.json`
 - Legacy compatibility: `examples/filter_list.txt` is migrated automatically to JSON
 - Used to skip watermarks, ads, and other text that should not be translated
+
+**Text replacement rules path**:
+
+- Default: `examples/text_replacements.yaml`
+- Used for custom text replacements applied after translation and before rendering
+- Supports three groups: `common` (all directions), `horizontal` (horizontal text only), `vertical` (vertical text only)
+- Each rule format:
+  ```yaml
+  - pattern: "match content"
+    replace: "replacement content"
+    regex: true          # optional, default false
+    enabled: true        # optional, default true
+    comment: "note"      # optional
+  ```
+- Replacement results are written into JSON; the editor export skips them automatically
+- Can be edited visually in the Qt UI under `Data Management` -> `Replacement Rules`
 
 **Custom API params path**:
 

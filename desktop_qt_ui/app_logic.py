@@ -1431,6 +1431,7 @@ class MainAppLogic(QObject):
                     "lowercase": self._t("label_lowercase"),
                     "font_path": self._t("label_font_path"),
                     "no_hyphenation": self._t("label_no_hyphenation"),
+                    "bubble_layout_english": self._t("label_bubble_layout_english"),
                     "font_color": self._t("label_font_color"),
                     "auto_rotate_symbols": self._t("label_auto_rotate_symbols"),
                     "rtl": self._t("label_rtl"),
