@@ -93,6 +93,18 @@ The original Chinese document grouped the interface into three tabs. In the curr
     - repeated dots or ellipsis such as `...`
     - the editor's single-region translate button
 
+- **`Convert to Traditional Chinese` (`convert_to_traditional`)**: convert simplified Chinese to traditional Chinese after translation.
+  - Current UI location: `Settings` -> `Translation` -> `Post Processing` -> `Convert to Traditional Chinese`
+  - Uses OpenCC `s2twp` configuration (Taiwan standard), which converts not only characters but also regional vocabulary (e.g. 软件 → 軟體)
+  - Applies to: all translation modes (normal batch, high-quality batch, concurrent pipeline)
+  - Mutually exclusive with `convert_to_simplified`; if both are enabled, this option takes priority
+
+- **`Convert to Simplified Chinese` (`convert_to_simplified`)**: convert traditional Chinese to simplified Chinese after translation.
+  - Current UI location: `Settings` -> `Translation` -> `Post Processing` -> `Convert to Simplified Chinese`
+  - Uses OpenCC `t2s` configuration
+  - Applies to: all translation modes (normal batch, high-quality batch, concurrent pipeline)
+  - Mutually exclusive with `convert_to_traditional`; if both are enabled, `convert_to_traditional` takes priority
+
 - **`Use Custom API Params` (`use_custom_api_params`)**: enable custom API parameters.
   - Current UI location: `Settings` -> `General` -> `Use Custom API Params`
   - Applies to: translation, AI OCR, AI rendering, and AI colorization

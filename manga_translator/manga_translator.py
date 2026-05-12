@@ -5122,6 +5122,25 @@ class MangaTranslator:
 
         # 注意：翻译结果的保存移动到了translate方法的最后，确保保存的是最终结果
 
+        # 简繁体转换（OpenCC）
+        if config.translator.convert_to_traditional or config.translator.convert_to_simplified:
+            try:
+                import opencc
+                if config.translator.convert_to_traditional:
+                    _opencc_converter = opencc.OpenCC('s2twp')
+                    logger.info("Applying OpenCC: Simplified → Traditional (s2twp)")
+                else:
+                    _opencc_converter = opencc.OpenCC('t2s')
+                    logger.info("Applying OpenCC: Traditional → Simplified (t2s)")
+                for region in ctx.text_regions:
+                    if region.translation:
+                        original = region.translation
+                        region.translation = _opencc_converter.convert(region.translation)
+                        if original != region.translation:
+                            logger.debug(f"OpenCC: {original} => {region.translation}")
+            except ImportError:
+                logger.warning("opencc-python-reimplemented not installed, skipping Chinese conversion")
+
         # 应用后字典
         post_dict = load_dictionary(self.post_dict)
         post_replacements = []  

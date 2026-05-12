@@ -294,6 +294,12 @@ class TranslatorConfig(BaseModel):
     max_requests_per_minute: int = 0
     """Maximum API requests per minute. 0 means no limit."""
     
+    # 简繁体转换（翻译后处理）
+    convert_to_traditional: bool = False
+    """Convert simplified Chinese to traditional Chinese after translation (using OpenCC s2twp)"""
+    convert_to_simplified: bool = False
+    """Convert traditional Chinese to simplified Chinese after translation (using OpenCC t2s)"""
+
     # 译后检查配置项
     enable_post_translation_check: bool = False
     """Enable post-translation validation check"""

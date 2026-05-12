@@ -93,7 +93,13 @@
         "translator.extract_glossary",
         "translator.max_requests_per_minute",
         "translator.remove_trailing_period",
-        "cli.context_size"
+        "cli.context_size",
+        {
+          "kind": "divider",
+          "title": "Post Processing"
+        },
+        "translator.convert_to_traditional",
+        "translator.convert_to_simplified"
       ]
     },
     {
@@ -137,6 +143,7 @@
         "render.uppercase",
         "render.lowercase",
         "render.no_hyphenation",
+        "render.bubble_layout_english",
         "render.font_color",
         "render.line_spacing",
         "render.letter_spacing",
