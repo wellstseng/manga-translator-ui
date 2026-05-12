@@ -733,6 +733,7 @@ class ExportService:
         translator_params.update(config)
         translator_params['load_text'] = True  # 关键：启用加载文本模式
         translator_params['save_text'] = False  # 不保存文本
+        translator_params['skip_text_replacements'] = True  # 编辑器导出跳过文本替换规则
         
         # 添加调试日志
         self.logger.info(f"Config keys: {list(config.keys())}")

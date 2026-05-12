@@ -666,6 +666,21 @@ glossary:
 - 旧版兼容：`examples/filter_list.txt`（启动时会自动迁移到 JSON）
 - 用于跳过水印、广告等不需要翻译的文本
 
+**文本替换规则路径**：
+- 默认：`examples/text_replacements.yaml`
+- 用于翻译后、渲染前对译文执行自定义替换
+- 支持三个分组：`common`（通用）、`horizontal`（横排）、`vertical`（竖排）
+- 每条规则格式：
+  ```yaml
+  - pattern: "匹配内容"
+    replace: "替换内容"
+    regex: true          # 可选，默认 false
+    enabled: true        # 可选，默认 true
+    comment: "备注"      # 可选
+  ```
+- 替换结果会写入 JSON，编辑器导出时自动跳过
+- 可在 Qt 界面"数据管理 → 替换规则"中可视化编辑
+
 **自定义 API 参数路径**：
 - 默认：`examples/custom_api_params.json`
 - 用于翻译、AI OCR、AI 渲染、AI 上色的额外 API 参数

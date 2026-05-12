@@ -69,6 +69,9 @@ class MainView(QWidget):
     _on_font_selection_changed = layout_parts._on_font_selection_changed
     _refresh_font_preview_styles = layout_parts.refresh_font_preview_styles
 
+    _create_replacements_page = layout_parts.create_replacements_page
+    _on_nav_replacements_clicked = layout_parts.on_nav_replacements_clicked
+
     update_progress = main_view_runtime.update_progress
     reset_progress = main_view_runtime.reset_progress
 
@@ -205,6 +208,8 @@ class MainView(QWidget):
             self.nav_prompt_button.setText(self._t("Prompt Management"))
         if hasattr(self, "nav_font_button"):
             self.nav_font_button.setText(self._t("Font Management"))
+        if hasattr(self, "nav_replacements_button"):
+            self.nav_replacements_button.setText(self._t("Replacement Rules"))
 
         if hasattr(self, "theme_label"):
             self.theme_label.setText(self._t("Theme:"))
@@ -343,6 +348,15 @@ class MainView(QWidget):
             self.font_apply_button.setText(self._t("Apply Selected Font"))
         if hasattr(self, "font_preview_card"):
             self.font_preview_card.setTitle(self._t("Font Preview"))
+
+        if hasattr(self, "replacements_page_title_label"):
+            self.replacements_page_title_label.setText(self._t("Replacement Rules"))
+        if hasattr(self, "replacements_page_subtitle_label"):
+            self.replacements_page_subtitle_label.setText(
+                self._t("Manage text replacement rules applied to translations before rendering")
+            )
+        if hasattr(self, "replacements_editor_panel"):
+            self.replacements_editor_panel.refresh_ui_texts()
 
         self._clear_dynamic_settings()
         self._create_dynamic_settings()

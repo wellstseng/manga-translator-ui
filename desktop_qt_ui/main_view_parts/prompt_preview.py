@@ -61,7 +61,7 @@ def _theme_tokens() -> Dict[str, str]:
         "table_alt_bg": c["tab_bg"],
         "table_grid": c["divider_sub_line"],
         "table_header_bg": c["bg_toolbar"],
-        "selection_bg": c["list_item_selected"],
+        "selection_bg": c["list_item_hover"],
         "selection_fg": c["list_item_selected_text"],
         "editor_bg": c["bg_text_edit"],
         "editor_border": c["border_input_focus"],

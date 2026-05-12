@@ -251,6 +251,11 @@ def create_left_sidebar(self) -> QWidget:
     self.nav_font_button.setCheckable(True)
     sidebar_layout.addWidget(self.nav_font_button)
 
+    self.nav_replacements_button = QPushButton(self._t("Replacement Rules"))
+    self.nav_replacements_button.setProperty("navButton", True)
+    self.nav_replacements_button.setCheckable(True)
+    sidebar_layout.addWidget(self.nav_replacements_button)
+
     sidebar_layout.addStretch()
 
     self.sidebar_divider_bottom = QFrame()
@@ -272,6 +277,7 @@ def create_left_sidebar(self) -> QWidget:
         self.nav_env_button,
         self.nav_prompt_button,
         self.nav_font_button,
+        self.nav_replacements_button,
         self.nav_editor_button,
     ]:
         button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -285,6 +291,7 @@ def create_left_sidebar(self) -> QWidget:
         self.nav_env_button,
         self.nav_prompt_button,
         self.nav_font_button,
+        self.nav_replacements_button,
     ]:
         self.nav_button_group.addButton(button)
 
@@ -294,6 +301,7 @@ def create_left_sidebar(self) -> QWidget:
         "env": self.nav_env_button,
         "prompts": self.nav_prompt_button,
         "fonts": self.nav_font_button,
+        "replacements": self.nav_replacements_button,
     }
 
     self.nav_translation_button.clicked.connect(lambda: self._switch_content_page("translation"))
@@ -302,6 +310,7 @@ def create_left_sidebar(self) -> QWidget:
     self.nav_env_button.clicked.connect(lambda: self._switch_content_page("env"))
     self.nav_prompt_button.clicked.connect(self._on_nav_prompt_clicked)
     self.nav_font_button.clicked.connect(self._on_nav_font_clicked)
+    self.nav_replacements_button.clicked.connect(self._on_nav_replacements_clicked)
 
     self.nav_translation_button.setChecked(True)
     return sidebar
@@ -919,6 +928,39 @@ def create_font_page(self) -> QWidget:
     return page
 
 
+def create_replacements_page(self) -> QWidget:
+    from main_view_parts.replacements_editor import ReplacementsEditorPanel
+
+    page = QWidget()
+    page.setObjectName("content_page_replacements")
+    page_layout = QVBoxLayout(page)
+    page_layout.setContentsMargins(18, 16, 18, 14)
+    page_layout.setSpacing(12)
+
+    # --- Header Card ---
+    header_card = QWidget()
+    header_card.setObjectName("header_card")
+    header_layout = QVBoxLayout(header_card)
+    header_layout.setContentsMargins(16, 14, 16, 14)
+    header_layout.setSpacing(4)
+    self.replacements_page_title_label = QLabel(self._t("Replacement Rules"))
+    self.replacements_page_title_label.setObjectName("page_title")
+    self.replacements_page_subtitle_label = QLabel(
+        self._t("Manage text replacement rules applied to translations before rendering")
+    )
+    self.replacements_page_subtitle_label.setObjectName("page_subtitle")
+    self.replacements_page_subtitle_label.setWordWrap(True)
+    header_layout.addWidget(self.replacements_page_title_label)
+    header_layout.addWidget(self.replacements_page_subtitle_label)
+    page_layout.addWidget(header_card)
+
+    # --- Editor Panel ---
+    self.replacements_editor_panel = ReplacementsEditorPanel(t_func=self._t, parent=self)
+    page_layout.addWidget(self.replacements_editor_panel, 1)
+
+    return page
+
+
 def create_right_panel(self) -> QWidget:
     right_panel = QWidget()
     right_panel.setObjectName("content_panel")
@@ -936,6 +978,7 @@ def create_right_panel(self) -> QWidget:
     self.page_indexes["env"] = self.content_stack.addWidget(self._create_env_page())
     self.page_indexes["prompts"] = self.content_stack.addWidget(self._create_prompt_page())
     self.page_indexes["fonts"] = self.content_stack.addWidget(self._create_font_page())
+    self.page_indexes["replacements"] = self.content_stack.addWidget(self._create_replacements_page())
     right_splitter.addWidget(self.content_stack)
 
     progress_container = QWidget()
@@ -998,6 +1041,12 @@ def on_nav_editor_clicked(self):
 
 def on_nav_font_clicked(self):
     self._switch_content_page("fonts")
+
+
+def on_nav_replacements_clicked(self):
+    self._switch_content_page("replacements")
+    if hasattr(self, "replacements_editor_panel"):
+        self.replacements_editor_panel.refresh()
     self._refresh_font_manager()
 
 
