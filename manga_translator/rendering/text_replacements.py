@@ -119,6 +119,7 @@ def apply_replacements(text: str, direction: int, replacements: Optional[dict] =
                        file_path: Optional[str] = None) -> str:
     """
     对译文应用替换规则。
+    自动跳过 [BR]、<br>、<H>...</H>、【BR】 等标记，避免标记内容被误替换。
 
     参数:
         text: 原始译文
@@ -135,6 +136,22 @@ def apply_replacements(text: str, direction: int, replacements: Optional[dict] =
     if replacements is None:
         replacements = load_replacements(file_path)
 
+    # 保护标记：提取 <H>...</H>、[BR]、<br>、【BR】 等，用占位符替代
+    _PROTECTED_RE = re.compile(
+        r'<H>.*?</H>'        # <H>...</H> 块
+        r'|\[BR\]'           # [BR]
+        r'|【BR】'           # 【BR】
+        r'|<br\s*/?>'        # <br> / <br/>
+        , re.IGNORECASE | re.DOTALL
+    )
+    protected_tokens = []
+
+    def _protect(match):
+        protected_tokens.append(match.group(0))
+        return f'\x00PROT{len(protected_tokens) - 1}\x00'
+
+    text = _PROTECTED_RE.sub(_protect, text)
+
     # 1. 先应用 common 规则
     for pattern, repl in replacements.get('common', []):
         text = pattern.sub(repl, text)
@@ -143,6 +160,10 @@ def apply_replacements(text: str, direction: int, replacements: Optional[dict] =
     group_key = 'vertical' if direction == 1 else 'horizontal'
     for pattern, repl in replacements.get(group_key, []):
         text = pattern.sub(repl, text)
+
+    # 恢复保护的标记
+    for i, token in enumerate(protected_tokens):
+        text = text.replace(f'\x00PROT{i}\x00', token)
 
     return text
 

@@ -52,7 +52,7 @@ class GraphicsViewInputMixin:
             event.accept()
             return
 
-        if self._active_tool in ["pen", "eraser", "brush"] and event.button() == Qt.MouseButton.LeftButton:
+        if self._active_tool in ["pen", "eraser", "brush", "paint", "paint_erase"] and event.button() == Qt.MouseButton.LeftButton:
             self._start_drawing(event.pos())
             event.accept()
             return
@@ -156,7 +156,8 @@ class GraphicsViewInputMixin:
             pixmap = QPixmap(self._image_item.pixmap().size())
             pixmap.fill(Qt.GlobalColor.transparent)
             self._preview_item = self.scene.addPixmap(pixmap)
-            self._preview_item.setZValue(150)
+            # 预览应该在蒙版之上、文字之下，避免盖住文本渲染
+            self._preview_item.setZValue(12)
             self._scale_mask_item(self._preview_item)
         self._preview_item.setVisible(True)
         self._redraw_preview_drawing()
@@ -177,7 +178,28 @@ class GraphicsViewInputMixin:
             painter = QPainter(pixmap)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-            if self._active_tool in ["pen", "brush"]:
+            if self._active_tool == "paint":
+                preview_color = QColor(self._brush_color)
+                if not preview_color.isValid():
+                    preview_color = QColor(255, 0, 0, 200)
+                else:
+                    preview_color.setAlpha(220)
+                preview_pen = QPen(
+                    preview_color,
+                    self._brush_size,
+                    Qt.PenStyle.SolidLine,
+                    Qt.PenCapStyle.RoundCap,
+                    Qt.PenJoinStyle.RoundJoin,
+                )
+            elif self._active_tool == "paint_erase":
+                preview_pen = QPen(
+                    QColor(0, 200, 255, 120),
+                    self._brush_size,
+                    Qt.PenStyle.SolidLine,
+                    Qt.PenCapStyle.RoundCap,
+                    Qt.PenJoinStyle.RoundJoin,
+                )
+            elif self._active_tool in ["pen", "brush"]:
                 preview_pen = QPen(
                     QColor(255, 0, 0, 128),
                     self._brush_size,
@@ -210,6 +232,13 @@ class GraphicsViewInputMixin:
         self.viewport().update()
 
     def _get_edit_mask_shape(self):
+        # paint 模式：始终匹配底图像素尺寸
+        if self._active_tool in ("paint", "paint_erase"):
+            if self._image_item is None:
+                return None
+            pixmap = self._image_item.pixmap()
+            return pixmap.height(), pixmap.width()
+
         current_mask = self.model.get_refined_mask()
         if current_mask is not None:
             mask = np.array(current_mask)
@@ -312,6 +341,12 @@ class GraphicsViewInputMixin:
             self._clear_preview()
             return
 
+        # Paint overlay 彩色画笔 / 擦除路径
+        if self._active_tool in ("paint", "paint_erase"):
+            self._finish_paint_overlay_drawing()
+            self._reset_drawing_state()
+            return
+
         current_mask = self.model.get_refined_mask()
         old_mask_np = (
             self._normalize_binary_mask_array(current_mask, self._current_draw_mask_shape)
@@ -361,6 +396,77 @@ class GraphicsViewInputMixin:
 
         self._reset_drawing_state()
 
+    def _finish_paint_overlay_drawing(self):
+        """把当前笔画应用到 paint overlay 图层。"""
+        try:
+            shape = self._current_draw_mask_shape
+            stroke_mask = self._build_stroke_mask(self._current_draw_mask_points, shape)
+            if not np.any(stroke_mask):
+                self._clear_preview()
+                return
+
+            overlay = self.model.get_paint_overlay_image()
+            h, w = shape
+            if overlay is None:
+                old_overlay = None
+                new_overlay = np.zeros((h, w, 4), dtype=np.uint8)
+            else:
+                old_arr = np.asarray(overlay)
+                if old_arr.ndim == 2:
+                    tmp = np.zeros((old_arr.shape[0], old_arr.shape[1], 4), dtype=np.uint8)
+                    tmp[..., 3] = old_arr.astype(np.uint8)
+                    old_arr = tmp
+                elif old_arr.ndim == 3 and old_arr.shape[2] == 3:
+                    tmp = np.zeros((old_arr.shape[0], old_arr.shape[1], 4), dtype=np.uint8)
+                    tmp[..., :3] = old_arr
+                    tmp[..., 3] = 255
+                    old_arr = tmp
+                elif old_arr.ndim != 3 or old_arr.shape[2] != 4:
+                    old_arr = None
+
+                if old_arr is None or old_arr.shape[:2] != (h, w):
+                    # 尺寸不匹配：重置图层
+                    old_overlay = None
+                    new_overlay = np.zeros((h, w, 4), dtype=np.uint8)
+                else:
+                    old_overlay = old_arr.astype(np.uint8, copy=False)
+                    new_overlay = old_overlay.copy()
+
+            pixel_mask = stroke_mask > 0
+
+            if self._active_tool == "paint":
+                color = QColor(self._brush_color)
+                if not color.isValid():
+                    color = QColor(255, 0, 0)
+                new_overlay[pixel_mask, 0] = color.red()
+                new_overlay[pixel_mask, 1] = color.green()
+                new_overlay[pixel_mask, 2] = color.blue()
+                new_overlay[pixel_mask, 3] = 255
+            else:  # paint_erase
+                new_overlay[pixel_mask] = 0
+
+            controller = self._get_controller()
+            if not controller:
+                self._clear_preview()
+                return
+
+            if old_overlay is not None and np.array_equal(old_overlay, new_overlay):
+                self._clear_preview()
+                return
+
+            from .commands import PaintOverlayEditCommand
+
+            command = PaintOverlayEditCommand(
+                model=self.model,
+                old_overlay=old_overlay,
+                new_overlay=new_overlay,
+            )
+            controller.execute_command(command)
+        except Exception as e:
+            self.logger.error("Paint overlay stroke failed: %s", e, exc_info=True)
+        finally:
+            self._clear_preview()
+
     def _reset_drawing_state(self):
         self._is_drawing = False
         self._current_draw_scene_points = []
@@ -385,8 +491,15 @@ class GraphicsViewInputMixin:
         self._brush_size = size
         self._update_cursor()
 
+    @pyqtSlot(str)
+    def _on_brush_color_changed(self, color: str):
+        self._brush_color = color or "#ffffff"
+        # 只有当前是 paint 工具时刷新光标
+        if self._active_tool == "paint":
+            self._update_cursor()
+
     def _update_cursor(self):
-        if self._active_tool in ["pen", "eraser", "brush"]:
+        if self._active_tool in ["pen", "eraser", "brush", "paint", "paint_erase"]:
             size = max(10, int(self._brush_size * self.transform().m11()))
             cursor_size = size + 6
             pixmap = QPixmap(cursor_size, cursor_size)
@@ -401,7 +514,18 @@ class GraphicsViewInputMixin:
             painter.setPen(QPen(Qt.GlobalColor.black, 2))
             painter.setBrush(Qt.GlobalColor.transparent)
             painter.drawEllipse(center - radius, center - radius, radius * 2, radius * 2)
-            painter.setPen(QPen(Qt.GlobalColor.red if self._active_tool in ["pen", "brush"] else Qt.GlobalColor.blue, 1))
+
+            if self._active_tool == "paint":
+                inner_color = QColor(self._brush_color)
+                if not inner_color.isValid():
+                    inner_color = QColor(255, 0, 0)
+            elif self._active_tool in ["pen", "brush"]:
+                inner_color = QColor(Qt.GlobalColor.red)
+            elif self._active_tool == "paint_erase":
+                inner_color = QColor(0, 200, 255)
+            else:
+                inner_color = QColor(Qt.GlobalColor.blue)
+            painter.setPen(QPen(inner_color, 1))
             painter.drawEllipse(center - radius + 1, center - radius + 1, (radius - 1) * 2, (radius - 1) * 2)
             painter.end()
 

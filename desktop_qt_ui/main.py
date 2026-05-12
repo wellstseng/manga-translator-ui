@@ -32,6 +32,13 @@ if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
         if os.path.exists(onnx_capi_dir):
             os.add_dll_directory(onnx_capi_dir)
 
+# 在 PyQt6 之前加载 PyTorch，避免 PyQt6 的 Qt DLL 路径干扰 c10.dll 的加载
+# 参考: https://github.com/pytorch/pytorch/issues/166628
+try:
+    import torch  # noqa: F401
+except ImportError:
+    pass
+
 from main_window import MainWindow
 from PyQt6.QtWidgets import QApplication
 from services import init_services

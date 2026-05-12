@@ -14,6 +14,14 @@ import warnings
 # expandable_segments 可以减少显存碎片，避免 OOM 错误
 os.environ.setdefault('PYTORCH_ALLOC_CONF', 'expandable_segments:True')
 
+# 在 PyQt6 之前加载 PyTorch，避免 PyQt6 的 Qt DLL 路径干扰 c10.dll 的加载
+# 渲染模块 (text_render.py) 依赖 PyQt6，会触发 DLL 冲突
+# 参考: https://github.com/pytorch/pytorch/issues/166628
+try:
+    import torch  # noqa: F401
+except ImportError:
+    pass
+
 # 隐藏第三方库的警告
 warnings.filterwarnings('ignore', message='.*Triton.*')
 warnings.filterwarnings('ignore', message='.*triton.*')

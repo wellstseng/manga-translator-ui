@@ -28,6 +28,8 @@ class EditorModel(QObject):
     region_style_updated = pyqtSignal(int)
     active_tool_changed = pyqtSignal(str)
     brush_size_changed = pyqtSignal(int)
+    brush_color_changed = pyqtSignal(str)
+    paint_overlay_changed = pyqtSignal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -52,6 +54,7 @@ class EditorModel(QObject):
         self.raw_mask_changed.emit(self.get_raw_mask())
         self.refined_mask_changed.emit(self.get_refined_mask())
         self.inpainted_image_changed.emit(self.get_inpainted_image())
+        self.paint_overlay_changed.emit(self.get_paint_overlay_image())
         self.selection_changed.emit(self.get_selection())
 
     def clear_document(self) -> None:
@@ -62,6 +65,7 @@ class EditorModel(QObject):
         self.raw_mask_changed.emit(self.get_raw_mask())
         self.refined_mask_changed.emit(self.get_refined_mask())
         self.inpainted_image_changed.emit(self.get_inpainted_image())
+        self.paint_overlay_changed.emit(self.get_paint_overlay_image())
         self.selection_changed.emit(self.get_selection())
 
     def set_source_image_path(self, path: Optional[str]):
@@ -167,3 +171,23 @@ class EditorModel(QObject):
 
     def get_brush_size(self) -> int:
         return self.session.get_brush_size()
+
+    def set_brush_color(self, color: str):
+        if self.session.set_brush_color(color):
+            self.brush_color_changed.emit(self.session.get_brush_color())
+
+    def get_brush_color(self) -> str:
+        return self.session.get_brush_color()
+
+    def set_paint_overlay_path(self, path: Optional[str]):
+        self.session.set_paint_overlay_path(path)
+
+    def get_paint_overlay_path(self) -> Optional[str]:
+        return self.session.get_paint_overlay_path()
+
+    def set_paint_overlay_image(self, image: Any):
+        self.session.set_paint_overlay_image(image)
+        self.paint_overlay_changed.emit(image)
+
+    def get_paint_overlay_image(self) -> Optional[Any]:
+        return self.session.get_paint_overlay_image()

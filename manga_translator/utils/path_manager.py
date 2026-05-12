@@ -15,6 +15,7 @@ TRANSLATIONS_SUBDIR = "translations"
 ORIGINALS_SUBDIR = "originals"
 YOLO_LABELS_SUBDIR = "yolo_labels"
 INPAINTED_SUBDIR = "inpainted"
+PAINT_OVERLAY_SUBDIR = "paint_overlay"  # 彩色画笔涂鸦图层目录
 TRANSLATED_IMAGES_SUBDIR = "translated_images"  # 已翻译图片目录（替换翻译模式使用）
 EDITOR_BASE_SUBDIR = "editor_base"
 WORK_DIR_RESERVED_NAMES = {
@@ -23,6 +24,7 @@ WORK_DIR_RESERVED_NAMES = {
     ORIGINALS_SUBDIR,
     YOLO_LABELS_SUBDIR,
     INPAINTED_SUBDIR,
+    PAINT_OVERLAY_SUBDIR,
     TRANSLATED_IMAGES_SUBDIR,
     EDITOR_BASE_SUBDIR,
 }
@@ -379,6 +381,39 @@ def find_inpainted_path(image_path: str) -> Optional[str]:
     if os.path.exists(inpainted_path):
         return inpainted_path
     
+    return None
+
+
+def get_paint_overlay_path(image_path: str, create_dir: bool = True) -> str:
+    """
+    获取彩色画笔涂鸦图层（paint overlay）的保存路径。
+
+    存放在 manga_translator_work/paint_overlay/<basename>_overlay.png。
+    统一使用 PNG 以保留 alpha 通道。
+
+    Args:
+        image_path: 原图片路径
+        create_dir: 是否自动创建目录
+
+    Returns:
+        paint overlay 图片的绝对路径
+    """
+    original_path = resolve_original_image_path(image_path)
+    work_dir = get_work_dir(original_path)
+    overlay_dir = os.path.join(work_dir, PAINT_OVERLAY_SUBDIR)
+
+    if create_dir:
+        os.makedirs(overlay_dir, exist_ok=True)
+
+    base_name = os.path.splitext(os.path.basename(original_path))[0]
+    return os.path.join(overlay_dir, f"{base_name}_overlay.png")
+
+
+def find_paint_overlay_path(image_path: str) -> Optional[str]:
+    """查找已保存的彩色画笔涂鸦图层文件。"""
+    overlay_path = get_paint_overlay_path(image_path, create_dir=False)
+    if os.path.exists(overlay_path):
+        return overlay_path
     return None
 
 

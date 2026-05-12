@@ -350,6 +350,38 @@ class EditorControllerInpaintService:
     def set_brush_size(self, size: int) -> None:
         self.model.set_brush_size(size)
 
+    def set_brush_color(self, color: str) -> None:
+        self.model.set_brush_color(color)
+
+    def clear_paint_overlay(self) -> None:
+        try:
+            from editor.commands import PaintOverlayEditCommand
+
+            old = self.model.get_paint_overlay_image()
+            if old is None:
+                return
+            import numpy as np
+
+            old_arr = np.asarray(old)
+            if old_arr.size == 0:
+                self.model.set_paint_overlay_image(None)
+                return
+            if old_arr.ndim == 3 and old_arr.shape[2] == 4:
+                has_content = bool(np.any(old_arr[..., 3]))
+            else:
+                has_content = bool(np.any(old_arr))
+            if not has_content:
+                self.model.set_paint_overlay_image(None)
+                return
+            command = PaintOverlayEditCommand(
+                model=self.model,
+                old_overlay=old_arr.copy(),
+                new_overlay=None,
+            )
+            self.controller.execute_command(command)
+        except Exception as e:
+            self.logger.error(f"Clear paint overlay failed: {e}", exc_info=True)
+
     def clear_all_masks(self) -> None:
         try:
             source_mask = self.model.get_refined_mask()

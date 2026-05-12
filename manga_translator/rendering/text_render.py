@@ -16,12 +16,6 @@ from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QGuiApplication, QImage, QPainter, QPainterPath, QPainterPathStroker, QRawFont, QTextLayout
 
 from ..utils import BASE_PATH
-from .text_replacements import (
-    apply_replacements,
-    build_h2v_dict,
-    build_v2h_dict,
-    load_replacements,
-)
 
 try:
     HYPHENATOR_LANGUAGES.remove('fr')
@@ -29,9 +23,6 @@ try:
 except Exception:
     pass
 
-# 从 examples/text_replacements.yaml 加载字符映射
-CJK_H2V = build_h2v_dict()
-CJK_V2H = build_v2h_dict()
 DEFAULT_FONT = os.path.join(BASE_PATH, 'fonts', 'Arial-Unicode-Regular.ttf')
 FALLBACK_FONTS = [
     os.path.join(BASE_PATH, 'fonts/Arial-Unicode-Regular.ttf'),
@@ -107,12 +98,9 @@ class FontState:
 
 
 def CJK_Compatibility_Forms_translate(cdpt: str, direction: int):
+    """渲染层不再做字符替换，全部交给翻译后处理阶段。"""
     if cdpt == 'ー' and direction == 1:
         return 'ー', 90
-    if cdpt in CJK_V2H:
-        return (CJK_V2H[cdpt], 0) if direction == 0 else (cdpt, 0)
-    if cdpt in CJK_H2V:
-        return (CJK_H2V[cdpt], 0) if direction == 1 else (cdpt, 0)
     return cdpt, 0
 
 

@@ -10,6 +10,7 @@ from .core.types import MaskType
 
 
 INPAINTED_IMAGE_CACHE_KEY = "inpainted_image"
+PAINT_OVERLAY_IMAGE_CACHE_KEY = "paint_overlay_image"
 
 
 @dataclass(slots=True)
@@ -21,6 +22,8 @@ class DocumentSnapshot:
     raw_mask: Any = None
     inpainted_path: Optional[str] = None
     inpainted_image: Any = None
+    paint_overlay_path: Optional[str] = None
+    paint_overlay_image: Any = None
 
 
 @dataclass(slots=True)
@@ -36,6 +39,7 @@ class EditorSession:
         self._source_image_path: Optional[str] = None
         self._image = None
         self._inpainted_image_path: Optional[str] = None
+        self._paint_overlay_path: Optional[str] = None
         self._display_mask_type: str = "none"
         self._selected_indices: list[int] = []
         self._region_display_mode: str = "full"
@@ -43,6 +47,7 @@ class EditorSession:
         self._compare_image = None
         self._active_tool: str = "select"
         self._brush_size: int = 30
+        self._brush_color: str = "#ffffff"
         self._document_revision: int = 0
 
     @staticmethod
@@ -209,6 +214,32 @@ class EditorSession:
     def get_brush_size(self) -> int:
         return self._brush_size
 
+    def set_brush_color(self, color: str) -> bool:
+        color_value = str(color or "").strip() or "#ff0000"
+        if self._brush_color == color_value:
+            return False
+        self._brush_color = color_value
+        return True
+
+    def get_brush_color(self) -> str:
+        return self._brush_color
+
+    def set_paint_overlay_path(self, path: Optional[str]) -> None:
+        self._paint_overlay_path = path
+
+    def get_paint_overlay_path(self) -> Optional[str]:
+        return self._paint_overlay_path
+
+    def set_paint_overlay_image(self, image: Any) -> None:
+        if image is None:
+            self.resource_manager.clear_cache(PAINT_OVERLAY_IMAGE_CACHE_KEY)
+        else:
+            self.resource_manager.set_cache(PAINT_OVERLAY_IMAGE_CACHE_KEY, image)
+        self._bump_document_revision()
+
+    def get_paint_overlay_image(self) -> Any:
+        return self.resource_manager.get_cache(PAINT_OVERLAY_IMAGE_CACHE_KEY)
+
     def load_document(self, snapshot: DocumentSnapshot) -> None:
         self.set_source_image_path(snapshot.source_path)
         self.set_image(snapshot.image)
@@ -218,6 +249,8 @@ class EditorSession:
         self.set_mask(MaskType.REFINED, None)
         self.set_inpainted_image_path(snapshot.inpainted_path)
         self.set_inpainted_image(snapshot.inpainted_image)
+        self.set_paint_overlay_path(snapshot.paint_overlay_path)
+        self.set_paint_overlay_image(snapshot.paint_overlay_image)
         self.set_selection([])
 
     def clear_document(self) -> None:
@@ -229,4 +262,6 @@ class EditorSession:
         self.set_mask(MaskType.REFINED, None)
         self.set_inpainted_image_path(None)
         self.set_inpainted_image(None)
+        self.set_paint_overlay_path(None)
+        self.set_paint_overlay_image(None)
         self.set_selection([])

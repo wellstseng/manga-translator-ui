@@ -507,9 +507,17 @@ class EditorController(QObject):
     def set_brush_size(self, size: int):
         self.inpaint_service.set_brush_size(size)
 
+    @pyqtSlot(str)
+    def set_brush_color(self, color: str):
+        self.inpaint_service.set_brush_color(color)
+
     @pyqtSlot()
     def clear_all_masks(self):
         self.inpaint_service.clear_all_masks()
+
+    @pyqtSlot()
+    def clear_paint_overlay(self):
+        self.inpaint_service.clear_paint_overlay()
 
     def _build_region_update_command(
         self,
@@ -1116,13 +1124,14 @@ class EditorController(QObject):
             inpainted_image=inpainted_image,
         )
 
-    async def _async_export_with_desktop_ui_service(self, image, regions, mask, source_path=None, inpainted_image=None):
+    async def _async_export_with_desktop_ui_service(self, image, regions, mask, source_path=None, inpainted_image=None, paint_overlay=None):
         return await self.export_service.async_export_with_desktop_ui_service(
             image,
             regions,
             mask,
             source_path=source_path,
             inpainted_image=inpainted_image,
+            paint_overlay=paint_overlay,
         )
 
     @pyqtSlot(str)

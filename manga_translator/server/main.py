@@ -9,6 +9,14 @@ from argparse import Namespace
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
+# 在 PyQt6 之前加载 PyTorch，避免 PyQt6 的 Qt DLL 路径干扰 c10.dll 的加载
+# 渲染模块 (text_render.py) 依赖 PyQt6，会触发 DLL 冲突
+# 参考: https://github.com/pytorch/pytorch/issues/166628
+try:
+    import torch  # noqa: F401
+except ImportError:
+    pass
+
 import logging
 
 from fastapi import FastAPI, Header, HTTPException, Request

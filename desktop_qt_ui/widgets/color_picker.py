@@ -436,13 +436,24 @@ class ColorPickerWidget(QWidget):
         picker = ScreenColorPicker()
 
         def on_picked(color):
-            dialog.setCurrentColor(color)
-            dialog.show()
-            dialog.activateWindow()
+            # QColorDialog 非原生实现的 setCurrentColor 无法可靠同步内部子控件，
+            # 导致点击 OK 后 currentColor() 仍返回旧值。
+            # 解决方案：直接关闭对话框并手动应用拾取到的颜色。
+            hex_color = color.name()
+            dialog.close()
+            self._apply_color(hex_color)
+            # 同步保存到常用颜色
+            if hex_color not in self._saved_colors:
+                self._saved_colors.insert(0, hex_color)
+                if len(self._saved_colors) > 20:
+                    self._saved_colors = self._saved_colors[:20]
+                self._persist_saved_colors()
+                self._rebuild_saved_colors_menu()
 
         def on_cancel():
             dialog.show()
             dialog.activateWindow()
+            dialog.raise_()
 
         picker.color_picked.connect(on_picked)
         picker.canceled.connect(on_cancel)

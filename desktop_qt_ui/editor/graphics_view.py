@@ -74,8 +74,10 @@ class GraphicsView(
         self._raw_mask_item: QGraphicsPixmapItem = None
         self._refined_mask_item: QGraphicsPixmapItem = None
         self._inpainted_image_item: QGraphicsPixmapItem = None
+        self._paint_overlay_item: QGraphicsPixmapItem = None
         self._q_image_ref = None
         self._inpainted_q_image_ref = None
+        self._paint_overlay_q_image_ref = None
         self._preview_item: QGraphicsPixmapItem = None
 
         self._region_items = []
@@ -83,6 +85,7 @@ class GraphicsView(
 
         self._active_tool = "select"
         self._brush_size = 30
+        self._brush_color = "#ffffff"
         self._is_drawing = False
         self._current_draw_scene_points: list[QPointF] = []
         self._current_draw_mask_points: list[tuple[int, int]] = []
@@ -168,11 +171,13 @@ class GraphicsView(
         self.model.refined_mask_changed.connect(lambda mask: self.on_mask_data_changed("refined", mask))
         self.model.display_mask_type_changed.connect(self.on_display_mask_type_changed)
         self.model.inpainted_image_changed.connect(self.on_inpainted_image_changed)
+        self.model.paint_overlay_changed.connect(self.on_paint_overlay_changed)
         self.model.region_display_mode_changed.connect(self.on_region_display_mode_changed)
         self.model.original_image_alpha_changed.connect(self.on_original_image_alpha_changed)
         self.model.region_style_updated.connect(self.on_region_style_updated)
         self.model.active_tool_changed.connect(self._on_active_tool_changed)
         self.model.brush_size_changed.connect(self._on_brush_size_changed)
+        self.model.brush_color_changed.connect(self._on_brush_color_changed)
 
     def get_view_state(self):
         if self._image_item is None:

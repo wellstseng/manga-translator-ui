@@ -51,6 +51,11 @@ class GraphicsViewLayersMixin:
             self._q_image_ref = None
             self._inpainted_q_image_ref = None
 
+            if self._paint_overlay_item and self._paint_overlay_item.scene():
+                self.scene.removeItem(self._paint_overlay_item)
+                self._paint_overlay_item = None
+            self._paint_overlay_q_image_ref = None
+
             if self._raw_mask_item and self._raw_mask_item.scene():
                 self.scene.removeItem(self._raw_mask_item)
                 self._raw_mask_item = None
@@ -96,6 +101,7 @@ class GraphicsViewLayersMixin:
         self._raw_mask_item = None
         self._refined_mask_item = None
         self._inpainted_image_item = None
+        self._paint_overlay_item = None
         self._preview_item = None
 
         if image is None:
@@ -217,6 +223,46 @@ class GraphicsViewLayersMixin:
 
         self._scale_mask_item(self._inpainted_image_item)
         self._inpainted_image_item.setVisible(True)
+
+    def on_paint_overlay_changed(self, overlay):
+        """彩色画笔图层数据变化时刷新对应 pixmap。"""
+        if self._image_item is None:
+            return
+
+        if overlay is None or getattr(overlay, "size", 0) == 0:
+            if self._paint_overlay_item is not None:
+                self._paint_overlay_item.setVisible(False)
+                self._paint_overlay_item.setPixmap(QPixmap())
+            self._paint_overlay_q_image_ref = None
+            return
+
+        try:
+            display_frame = build_display_image_frame(overlay, max_pixels=self.INPAINT_PREVIEW_MAX_PIXELS)
+            if display_frame is None:
+                raise ValueError("display frame is empty")
+            self._paint_overlay_q_image_ref = display_frame.qimage
+        except Exception as convert_error:
+            self.logger.warning("Failed to convert paint overlay to QImage: %s", convert_error)
+            self._paint_overlay_q_image_ref = None
+            if self._paint_overlay_item is not None:
+                self._paint_overlay_item.setVisible(False)
+            return
+
+        pixmap = QPixmap.fromImage(self._paint_overlay_q_image_ref)
+        if self._paint_overlay_item is None:
+            self._paint_overlay_item = TransparentPixmapItem()
+            self._paint_overlay_item.setPixmap(pixmap)
+            # 位于修复图之上、文字区域之下
+            self._paint_overlay_item.setZValue(5)
+            self._paint_overlay_item.setOpacity(1.0)
+            self.scene.addItem(self._paint_overlay_item)
+        else:
+            self._paint_overlay_item.setPixmap(pixmap)
+
+        self._scale_mask_item(self._paint_overlay_item)
+        self._paint_overlay_item.setVisible(True)
+        self.scene.update()
+        self.viewport().update()
 
     @pyqtSlot(float)
     def on_original_image_alpha_changed(self, alpha: float):

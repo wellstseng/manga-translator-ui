@@ -18,6 +18,7 @@ from manga_translator.utils.path_manager import (
     find_json_path,
     get_inpainted_path,
     get_json_path,
+    get_paint_overlay_path,
 )
 
 from .image_utils import image_like_to_pil, image_like_to_rgb_array
@@ -74,9 +75,18 @@ class EditorControllerExportService:
         if mask is not None:
             mask_signature = f"{mask.shape}_{mask.sum()}_{np.count_nonzero(mask)}"
 
+        overlay = self.model.get_paint_overlay_image()
+        overlay_signature = ""
+        if overlay is not None:
+            overlay_arr = np.asarray(overlay)
+            overlay_signature = (
+                f"{overlay_arr.shape}_{int(overlay_arr.sum())}_{int(np.count_nonzero(overlay_arr))}"
+            )
+
         return {
             "regions_hash": hash("|".join(snapshot_data)),
             "mask_signature": mask_signature,
+            "overlay_signature": overlay_signature,
             "source_path": self.model.get_source_image_path(),
         }
 
@@ -91,6 +101,8 @@ class EditorControllerExportService:
         return (
             current_snapshot["regions_hash"] != self.controller._last_export_snapshot["regions_hash"]
             or current_snapshot["mask_signature"] != self.controller._last_export_snapshot["mask_signature"]
+            or current_snapshot.get("overlay_signature", "")
+            != self.controller._last_export_snapshot.get("overlay_signature", "")
         )
 
     def save_export_snapshot(self) -> None:
@@ -136,6 +148,13 @@ class EditorControllerExportService:
             regions_snapshot = copy.deepcopy(regions)
             mask_snapshot = None if mask is None else np.array(mask, copy=True)
 
+            paint_overlay = self.model.get_paint_overlay_image()
+            overlay_snapshot = None
+            if paint_overlay is not None:
+                overlay_arr = np.asarray(paint_overlay)
+                if overlay_arr.ndim == 3 and overlay_arr.shape[2] == 4 and np.any(overlay_arr[..., 3]):
+                    overlay_snapshot = overlay_arr.copy()
+
             return self.async_service.submit_task(
                 self.async_export_with_desktop_ui_service(
                     image_snapshot,
@@ -143,6 +162,7 @@ class EditorControllerExportService:
                     mask_snapshot,
                     source_path,
                     inpainted_snapshot,
+                    overlay_snapshot,
                 )
             )
         except Exception as e:
@@ -276,6 +296,81 @@ class EditorControllerExportService:
         except Exception as e:
             self.logger.warning(f"更新inpainted图片失败: {e}")
 
+    def save_paint_overlay_image(
+        self,
+        source_path: str,
+        overlay: Optional[np.ndarray],
+    ) -> Optional[str]:
+        """将 paint overlay 落盘到 manga_translator_work/paint_overlay 目录。
+
+        若 overlay 为 None 或全透明，且已存在旧文件，则保留旧文件不删除；
+        若从未保存过则不创建空文件。
+        """
+        try:
+            if overlay is None:
+                return None
+            overlay_arr = np.asarray(overlay)
+            if overlay_arr.ndim != 3 or overlay_arr.shape[2] < 4:
+                return None
+            if not np.any(overlay_arr[..., 3]):
+                return None
+
+            from PIL import Image as _PILImage
+
+            overlay_path = get_paint_overlay_path(source_path, create_dir=True)
+            pil_overlay = _PILImage.fromarray(overlay_arr.astype(np.uint8, copy=False), mode="RGBA")
+            try:
+                pil_overlay.save(overlay_path, format="PNG", optimize=False)
+            finally:
+                pil_overlay.close()
+            self.logger.info(f"已更新彩色画笔图层: {overlay_path}")
+            return overlay_path
+        except Exception as e:
+            self.logger.warning(f"保存彩色画笔图层失败: {e}")
+            return None
+
+    @staticmethod
+    def compose_image_with_overlay(
+        base_image: Optional[object],
+        overlay: Optional[np.ndarray],
+    ) -> Optional[object]:
+        """把 paint overlay（RGBA）合成到 inpainted 底图上，返回 numpy RGB 数组。
+
+        若 overlay 为空或无有效 alpha，则原样返回 base_image（不复制）。
+        """
+        if base_image is None:
+            return base_image
+        if overlay is None:
+            return base_image
+
+        overlay_arr = np.asarray(overlay)
+        if overlay_arr.ndim != 3 or overlay_arr.shape[2] < 4:
+            return base_image
+        if not np.any(overlay_arr[..., 3]):
+            return base_image
+
+        base_rgb = image_like_to_rgb_array(base_image, copy=True)
+        if base_rgb is None:
+            return base_image
+
+        h, w = base_rgb.shape[:2]
+        overlay_resized = overlay_arr
+        if overlay_arr.shape[:2] != (h, w):
+            try:
+                overlay_resized = cv2.resize(
+                    overlay_arr,
+                    (w, h),
+                    interpolation=cv2.INTER_NEAREST,
+                )
+            except Exception:
+                return base_image
+
+        alpha = overlay_resized[..., 3].astype(np.float32) / 255.0
+        alpha3 = np.repeat(alpha[..., None], 3, axis=2)
+        rgb = overlay_resized[..., :3].astype(np.float32)
+        composed = base_rgb.astype(np.float32) * (1.0 - alpha3) + rgb * alpha3
+        return np.clip(composed, 0, 255).astype(np.uint8, copy=False)
+
     def persist_editor_state_for_export(
         self,
         export_service,
@@ -363,6 +458,7 @@ class EditorControllerExportService:
         mask,
         source_path: Optional[str] = None,
         inpainted_image=None,
+        paint_overlay: Optional[np.ndarray] = None,
     ):
         outcome = {
             "success": False,
@@ -391,8 +487,18 @@ class EditorControllerExportService:
                     inpainted_image=inpainted_image,
                 )
                 outcome["json_path"] = persisted_json_path
+                # 同步持久化彩色画笔图层
+                self.save_paint_overlay_image(source_path, paint_overlay)
             else:
                 self.logger.warning("Exporting without source image path, skipped JSON persistence")
+
+            # 在交给后端渲染前，先把彩色画笔图层合成到修复底图上，
+            # 这样后端在复用 inpainted 图时文字会叠在用户涂抹的结果之上。
+            render_inpainted_image = inpainted_image
+            if paint_overlay is not None and inpainted_image is not None:
+                composed = self.compose_image_with_overlay(inpainted_image, paint_overlay)
+                if composed is not None and composed is not inpainted_image:
+                    render_inpainted_image = composed
 
             def progress_callback(_message):
                 return None
@@ -430,7 +536,7 @@ class EditorControllerExportService:
                 error_callback,
                 source_path,
                 False,
-                inpainted_image,
+                render_inpainted_image,
             )
             if not outcome["success"] and outcome["error"] is None:
                 outcome["error"] = "导出未返回成功状态"

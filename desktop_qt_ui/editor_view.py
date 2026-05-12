@@ -266,6 +266,10 @@ class EditorView(QWidget):
         self.model.selection_changed.connect(self.property_panel.on_selection_changed)
         # Connect model brush size changes to the property panel
         self.model.brush_size_changed.connect(self.property_panel.sync_brush_size_from_model)
+        # Connect model brush color changes to the property panel
+        self.model.brush_color_changed.connect(self.property_panel.sync_brush_color_from_model)
+        # Keep tool buttons in sync with model
+        self.model.active_tool_changed.connect(self.property_panel.sync_active_tool_from_model)
         self.model.compare_image_changed.connect(self._on_compare_image_changed)
 
         # --- View to Controller ---
@@ -324,6 +328,9 @@ class EditorView(QWidget):
         # --- Connect Mask Editing Tools ---
         self.property_panel.mask_tool_changed.connect(self.controller.set_active_tool)
         self.property_panel.brush_size_changed.connect(self.controller.set_brush_size)
+        # --- Connect Paint Overlay Tools ---
+        self.property_panel.brush_color_changed.connect(self.controller.set_brush_color)
+        self.property_panel.clear_paint_overlay_requested.connect(self.controller.clear_paint_overlay)
 
         # Note: Some signals from PropertyPanel might not have corresponding slots in the controller yet.
         # e.g., copy/paste/delete, mask tool changes.

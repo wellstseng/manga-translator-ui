@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QSlider,
     QStyle,
+    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -115,6 +116,9 @@ class PropertyPanel(QWidget):
     brush_size_changed = pyqtSignal(int)
     toggle_mask_visibility = pyqtSignal(bool)
     clear_all_masks_requested = pyqtSignal()
+    # Paint overlay signals
+    brush_color_changed = pyqtSignal(str)
+    clear_paint_overlay_requested = pyqtSignal()
 
     def __init__(self, model, app_logic, parent=None):
         super().__init__(parent)
@@ -203,15 +207,27 @@ class PropertyPanel(QWidget):
     def _create_mask_edit_section(self, layout):
         self.mask_edit_frame = QGroupBox(self._t("Mask Editing"))
         self.mask_edit_frame.setObjectName("editor_mask_group")
-        mask_layout = QVBoxLayout(self.mask_edit_frame)
-        mask_layout.setContentsMargins(8, 8, 8, 6)
-        mask_layout.setSpacing(8)
-        tools_layout = QHBoxLayout()
-        tools_layout.setContentsMargins(0, 0, 0, 0)
-        tools_layout.setSpacing(6)
+        frame_layout = QVBoxLayout(self.mask_edit_frame)
+        frame_layout.setContentsMargins(6, 8, 6, 6)
+        frame_layout.setSpacing(6)
 
+        self.paint_tab_widget = QTabWidget(self.mask_edit_frame)
+        self.paint_tab_widget.setObjectName("editor_paint_tabs")
+
+        # 选择按钮组（两个 tab 共享同一个按钮组，保持互斥）
         self.mask_tool_group = QButtonGroup(self)
         self.mask_tool_group.setExclusive(True)
+
+        # ======= Tab 1：蒙版 =======
+        mask_tab = QWidget()
+        mask_tab.setObjectName("editor_mask_tab")
+        mask_layout = QVBoxLayout(mask_tab)
+        mask_layout.setContentsMargins(6, 8, 6, 6)
+        mask_layout.setSpacing(8)
+
+        mask_tools_layout = QHBoxLayout()
+        mask_tools_layout.setContentsMargins(0, 0, 0, 0)
+        mask_tools_layout.setSpacing(6)
 
         self.brush_button = QPushButton(self._t("Brush"))
         self.brush_button.setObjectName("editor_mask_brush_button")
@@ -235,15 +251,15 @@ class PropertyPanel(QWidget):
         self.mask_tool_group.addButton(self.select_button, 0)
         self.mask_tool_group.addButton(self.brush_button, 1)
         self.mask_tool_group.addButton(self.eraser_button, 2)
-        self.select_button.setChecked(True) # Default to select
+        self.select_button.setChecked(True)
         for button in (self.select_button, self.brush_button, self.eraser_button):
             button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        tools_layout.addWidget(self.select_button)
-        tools_layout.addWidget(self.brush_button)
-        tools_layout.addWidget(self.eraser_button)
+        mask_tools_layout.addWidget(self.select_button)
+        mask_tools_layout.addWidget(self.brush_button)
+        mask_tools_layout.addWidget(self.eraser_button)
+        mask_layout.addLayout(mask_tools_layout)
 
-        mask_layout.addLayout(tools_layout)
         brush_size_layout = QHBoxLayout()
         brush_size_layout.setContentsMargins(0, 0, 0, 0)
         brush_size_layout.setSpacing(6)
@@ -260,15 +276,106 @@ class PropertyPanel(QWidget):
         brush_size_layout.addWidget(self.brush_size_slider)
         brush_size_layout.addWidget(self.brush_size_value_label)
         mask_layout.addLayout(brush_size_layout)
-        # 显示精炼蒙版复选框
+
         self.show_refined_mask_checkbox = QCheckBox(self._t("Show Refined Mask"))
-        self.show_refined_mask_checkbox.setChecked(False)  # 默认关闭
+        self.show_refined_mask_checkbox.setChecked(False)
         mask_layout.addWidget(self.show_refined_mask_checkbox)
 
         self.clear_all_masks_button = QPushButton(self._t("Clear All Masks"))
         self.clear_all_masks_button.setObjectName("editor_clear_masks_button")
         self.clear_all_masks_button.setProperty("softAction", True)
         mask_layout.addWidget(self.clear_all_masks_button)
+        mask_layout.addStretch()
+
+        # ======= Tab 2：画笔（彩色涂鸦） =======
+        paint_tab = QWidget()
+        paint_tab.setObjectName("editor_paint_tab")
+        paint_layout = QVBoxLayout(paint_tab)
+        paint_layout.setContentsMargins(6, 8, 6, 6)
+        paint_layout.setSpacing(8)
+
+        paint_tools_layout = QHBoxLayout()
+        paint_tools_layout.setContentsMargins(0, 0, 0, 0)
+        paint_tools_layout.setSpacing(6)
+
+        self.paint_select_button = QPushButton(self._t("No Selection"))
+        self.paint_select_button.setObjectName("editor_paint_select_button")
+        self.paint_select_button.setProperty("editorToolButton", True)
+        self.paint_select_button.setProperty("softAction", True)
+        self.paint_select_button.setCheckable(True)
+        set_hover_hint(self.paint_select_button, self._t("Selection Tool") + " (Q)")
+
+        self.paint_brush_button = QPushButton(self._t("Brush"))
+        self.paint_brush_button.setObjectName("editor_paint_brush_button")
+        self.paint_brush_button.setProperty("editorToolButton", True)
+        self.paint_brush_button.setProperty("softAction", True)
+        self.paint_brush_button.setCheckable(True)
+        set_hover_hint(self.paint_brush_button, self._t("Brush Tool"))
+
+        self.paint_eraser_button = QPushButton(self._t("Eraser"))
+        self.paint_eraser_button.setObjectName("editor_paint_eraser_button")
+        self.paint_eraser_button.setProperty("editorToolButton", True)
+        self.paint_eraser_button.setProperty("softAction", True)
+        self.paint_eraser_button.setCheckable(True)
+        set_hover_hint(self.paint_eraser_button, self._t("Eraser Tool"))
+
+        # 复用同一个互斥按钮组，保证和蒙版页工具互相切换时正确取消选中
+        self.mask_tool_group.addButton(self.paint_select_button, 3)
+        self.mask_tool_group.addButton(self.paint_brush_button, 4)
+        self.mask_tool_group.addButton(self.paint_eraser_button, 5)
+        for button in (self.paint_select_button, self.paint_brush_button, self.paint_eraser_button):
+            button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        paint_tools_layout.addWidget(self.paint_select_button)
+        paint_tools_layout.addWidget(self.paint_brush_button)
+        paint_tools_layout.addWidget(self.paint_eraser_button)
+        paint_layout.addLayout(paint_tools_layout)
+
+        # 画笔大小（与蒙版页共享同一个模型字段）
+        paint_size_layout = QHBoxLayout()
+        paint_size_layout.setContentsMargins(0, 0, 0, 0)
+        paint_size_layout.setSpacing(6)
+        self.paint_size_title_label = QLabel(self._t("Brush Size:"))
+        paint_size_layout.addWidget(self.paint_size_title_label)
+        self.paint_size_slider = QSlider(Qt.Orientation.Horizontal)
+        self.paint_size_slider.setObjectName("editor_paint_size_slider")
+        self.paint_size_slider.setRange(5, 200)
+        self.paint_size_slider.setValue(30)
+        self.paint_size_value_label = QLabel("30")
+        self.paint_size_value_label.setObjectName("editor_paint_size_value_label")
+        self.paint_size_value_label.setFixedWidth(28)
+        self.paint_size_value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        paint_size_layout.addWidget(self.paint_size_slider)
+        paint_size_layout.addWidget(self.paint_size_value_label)
+        paint_layout.addLayout(paint_size_layout)
+
+        # 画笔颜色（复用 ColorPickerWidget）
+        color_row = QHBoxLayout()
+        color_row.setContentsMargins(0, 0, 0, 0)
+        color_row.setSpacing(6)
+        self.paint_color_label = QLabel(self._t("Brush Color:"))
+        color_row.addWidget(self.paint_color_label)
+        self.paint_color_picker = ColorPickerWidget(
+            dialog_title="Select brush color",
+            default_color="#ffffff",
+            config_key="saved_colors",
+            config_service=self.config_service,
+            i18n_func=self._t,
+        )
+        self.paint_color_picker.setFixedWidth(96)
+        color_row.addWidget(self.paint_color_picker)
+        color_row.addStretch()
+        paint_layout.addLayout(color_row)
+
+        self.clear_paint_overlay_button = QPushButton(self._t("Clear Paint Layer"))
+        self.clear_paint_overlay_button.setObjectName("editor_clear_paint_button")
+        self.clear_paint_overlay_button.setProperty("softAction", True)
+        paint_layout.addWidget(self.clear_paint_overlay_button)
+        paint_layout.addStretch()
+
+        self.paint_tab_widget.addTab(mask_tab, self._t("Mask"))
+        self.paint_tab_widget.addTab(paint_tab, self._t("Paint"))
+        frame_layout.addWidget(self.paint_tab_widget)
         layout.addWidget(self.mask_edit_frame)
 
     def _create_text_section(self, layout):
@@ -605,8 +712,14 @@ class PropertyPanel(QWidget):
         # Mask
         self.mask_tool_group.buttonClicked.connect(self._on_mask_tool_changed)
         self.brush_size_slider.valueChanged.connect(self._on_brush_size_changed)
+        self.paint_size_slider.valueChanged.connect(self._on_brush_size_changed)
         self.show_refined_mask_checkbox.stateChanged.connect(lambda state: self.toggle_mask_visibility.emit(bool(state)))
         self.clear_all_masks_button.clicked.connect(self.clear_all_masks_requested.emit)
+
+        # Paint overlay
+        self.paint_color_picker.color_changed.connect(self._on_paint_color_changed)
+        self.clear_paint_overlay_button.clicked.connect(self.clear_paint_overlay_requested.emit)
+        self.paint_tab_widget.currentChanged.connect(self._on_paint_tab_changed)
 
         # Style
         self.font_family_combo.currentIndexChanged.connect(self._on_font_family_changed)
@@ -800,6 +913,26 @@ class PropertyPanel(QWidget):
         if hasattr(self, 'select_button'):
             self.select_button.setText(self._t("No Selection"))
             set_hover_hint(self.select_button, self._t("Selection Tool") + " (Q)")
+        if hasattr(self, 'paint_select_button'):
+            self.paint_select_button.setText(self._t("No Selection"))
+            set_hover_hint(self.paint_select_button, self._t("Selection Tool") + " (Q)")
+        if hasattr(self, 'paint_brush_button'):
+            self.paint_brush_button.setText(self._t("Brush"))
+            set_hover_hint(self.paint_brush_button, self._t("Brush Tool"))
+        if hasattr(self, 'paint_eraser_button'):
+            self.paint_eraser_button.setText(self._t("Eraser"))
+            set_hover_hint(self.paint_eraser_button, self._t("Eraser Tool"))
+        if hasattr(self, 'paint_size_title_label'):
+            self.paint_size_title_label.setText(self._t("Brush Size:"))
+        if hasattr(self, 'paint_color_label'):
+            self.paint_color_label.setText(self._t("Brush Color:"))
+        if hasattr(self, 'paint_color_picker'):
+            self.paint_color_picker.refresh_ui_texts()
+        if hasattr(self, 'paint_tab_widget'):
+            self.paint_tab_widget.setTabText(0, self._t("Mask"))
+            self.paint_tab_widget.setTabText(1, self._t("Paint"))
+        if hasattr(self, 'clear_paint_overlay_button'):
+            self.clear_paint_overlay_button.setText(self._t("Clear Paint Layer"))
         if hasattr(self, 'insert_placeholder_button'):
             self.insert_placeholder_button.setText(self._t("Placeholder"))
             set_hover_hint(self.insert_placeholder_button, self._t("Insert placeholder ＿"))
@@ -1647,24 +1780,98 @@ class PropertyPanel(QWidget):
             self.angle_changed.emit(region_index, float(value))
 
     def _on_mask_tool_changed(self, button):
-        if button == self.select_button:
+        if button is self.select_button or button is self.paint_select_button:
             self.mask_tool_changed.emit('select')
-        elif button == self.brush_button:
+        elif button is self.brush_button:
             self.mask_tool_changed.emit('brush')
-        elif button == self.eraser_button:
+        elif button is self.eraser_button:
             self.mask_tool_changed.emit('eraser')
+        elif button is self.paint_brush_button:
+            self.mask_tool_changed.emit('paint')
+        elif button is self.paint_eraser_button:
+            self.mask_tool_changed.emit('paint_erase')
 
     def _on_brush_size_changed(self, value):
+        """两个画笔大小滑块共享同一个模型字段；同步另一个滑块显示。"""
         self.brush_size_value_label.setText(str(value))
+        self.paint_size_value_label.setText(str(value))
+        # 同步另一个滑块，避免循环触发
+        sender = self.sender()
+        if sender is self.brush_size_slider:
+            if self.paint_size_slider.value() != value:
+                self.paint_size_slider.blockSignals(True)
+                self.paint_size_slider.setValue(value)
+                self.paint_size_slider.blockSignals(False)
+        else:
+            if self.brush_size_slider.value() != value:
+                self.brush_size_slider.blockSignals(True)
+                self.brush_size_slider.setValue(value)
+                self.brush_size_slider.blockSignals(False)
         self.brush_size_changed.emit(value)
+
+    def _on_paint_color_changed(self, hex_color: str):
+        self.brush_color_changed.emit(hex_color)
+
+    def _on_paint_tab_changed(self, index: int):
+        """切换标签页时，自动把活跃工具切回当前页的选择工具，避免跨页工具冲突。"""
+        try:
+            if index == 0:
+                # 蒙版页：若当前按钮在 paint 页，切回蒙版选择工具
+                checked = self.mask_tool_group.checkedButton()
+                if checked in (self.paint_select_button, self.paint_brush_button, self.paint_eraser_button):
+                    self.select_button.setChecked(True)
+                    self.mask_tool_changed.emit('select')
+            else:
+                checked = self.mask_tool_group.checkedButton()
+                if checked in (self.select_button, self.brush_button, self.eraser_button):
+                    self.paint_select_button.setChecked(True)
+                    self.mask_tool_changed.emit('select')
+        except Exception:
+            pass
 
     def sync_brush_size_from_model(self, size: int):
         """从模型同步画笔大小到UI（不触发信号）"""
-        # 阻止信号，避免循环触发
-        self.brush_size_slider.blockSignals(True)
-        self.brush_size_slider.setValue(size)
-        self.brush_size_value_label.setText(str(size))
-        self.brush_size_slider.blockSignals(False)
+        for slider, label in (
+            (self.brush_size_slider, self.brush_size_value_label),
+            (getattr(self, 'paint_size_slider', None), getattr(self, 'paint_size_value_label', None)),
+        ):
+            if slider is None:
+                continue
+            slider.blockSignals(True)
+            slider.setValue(size)
+            slider.blockSignals(False)
+            if label is not None:
+                label.setText(str(size))
+
+    def sync_brush_color_from_model(self, hex_color: str):
+        """从模型同步画笔颜色到 UI（不触发信号）"""
+        if hasattr(self, 'paint_color_picker') and self.paint_color_picker is not None:
+            self.paint_color_picker.set_color(hex_color or "#ffffff")
+
+    def sync_active_tool_from_model(self, tool: str):
+        """当 model 的 active_tool 变化时，UI 同步高亮对应按钮并切换标签页。"""
+        mapping = {
+            'select': (self.select_button, 0),
+            'brush': (self.brush_button, 0),
+            'eraser': (self.eraser_button, 0),
+            'paint': (getattr(self, 'paint_brush_button', None), 1),
+            'paint_erase': (getattr(self, 'paint_eraser_button', None), 1),
+        }
+        info = mapping.get(tool)
+        if not info:
+            return
+        button, tab_index = info
+        if button is None:
+            return
+        try:
+            self.mask_tool_group.blockSignals(True)
+            self.paint_tab_widget.blockSignals(True)
+            button.setChecked(True)
+            if self.paint_tab_widget.currentIndex() != tab_index:
+                self.paint_tab_widget.setCurrentIndex(tab_index)
+        finally:
+            self.mask_tool_group.blockSignals(False)
+            self.paint_tab_widget.blockSignals(False)
 
     def _on_alignment_changed(self, text: str):
         if self.block_updates:

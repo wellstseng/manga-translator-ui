@@ -298,3 +298,107 @@ class MaskEditCommand(QUndoCommand):
 
     def undo(self):
         self._apply_mask(self._full_old_mask, self._old_patch)
+
+
+class PaintOverlayEditCommand(QUndoCommand):
+    """用于彩色画笔图层编辑的撤销/重做命令。
+
+    图层为 RGBA uint8 数组（H, W, 4）。为了减少内存，只记录变化包围盒内的像素。
+    """
+
+    def __init__(
+        self,
+        model: "EditorModel",
+        old_overlay: Optional[np.ndarray],
+        new_overlay: Optional[np.ndarray],
+    ):
+        super().__init__("Paint Overlay Edit")
+        self._model = model
+        self._shape: Optional[tuple[int, int, int]] = None
+        self._bounds: Optional[tuple[int, int, int, int]] = None
+        self._old_patch: Optional[np.ndarray] = None
+        self._new_patch: Optional[np.ndarray] = None
+        self._full_old: Optional[np.ndarray] = None
+        self._full_new: Optional[np.ndarray] = None
+
+        old_arr = self._normalize_overlay(old_overlay)
+        new_arr = self._normalize_overlay(new_overlay)
+
+        reference_shape = None
+        if old_arr is not None:
+            reference_shape = old_arr.shape
+        elif new_arr is not None:
+            reference_shape = new_arr.shape
+        if reference_shape is None:
+            return
+
+        if old_arr is None:
+            old_arr = np.zeros(reference_shape, dtype=np.uint8)
+        if new_arr is None:
+            new_arr = np.zeros(reference_shape, dtype=np.uint8)
+
+        if old_arr.shape != new_arr.shape:
+            self._full_old = old_arr.copy()
+            self._full_new = new_arr.copy()
+            return
+
+        self._shape = old_arr.shape
+        diff = np.any(old_arr != new_arr, axis=2)
+        if not np.any(diff):
+            return
+
+        coords = np.where(diff)
+        y_min = int(np.min(coords[0]))
+        y_max = int(np.max(coords[0])) + 1
+        x_min = int(np.min(coords[1]))
+        x_max = int(np.max(coords[1])) + 1
+        self._bounds = (y_min, y_max, x_min, x_max)
+        self._old_patch = old_arr[y_min:y_max, x_min:x_max].copy()
+        self._new_patch = new_arr[y_min:y_max, x_min:x_max].copy()
+
+    @staticmethod
+    def _normalize_overlay(overlay: Optional[np.ndarray]) -> Optional[np.ndarray]:
+        if overlay is None:
+            return None
+        arr = np.asarray(overlay)
+        if arr.ndim == 2:
+            rgba = np.zeros((arr.shape[0], arr.shape[1], 4), dtype=np.uint8)
+            rgba[..., 3] = arr.astype(np.uint8)
+            return rgba
+        if arr.ndim == 3 and arr.shape[2] == 3:
+            rgba = np.concatenate([arr.astype(np.uint8), np.full((arr.shape[0], arr.shape[1], 1), 255, dtype=np.uint8)], axis=2)
+            return rgba
+        if arr.ndim == 3 and arr.shape[2] == 4:
+            return arr.astype(np.uint8, copy=False)
+        return None
+
+    def _apply(self, full: Optional[np.ndarray], patch: Optional[np.ndarray]) -> None:
+        if full is not None:
+            self._model.set_paint_overlay_image(full.copy())
+            return
+
+        if self._shape is None:
+            self._model.set_paint_overlay_image(None)
+            return
+
+        current = self._normalize_overlay(self._model.get_paint_overlay_image())
+        if current is None or current.shape != self._shape:
+            current = np.zeros(self._shape, dtype=np.uint8)
+        else:
+            current = current.copy()
+
+        if self._bounds is not None and patch is not None:
+            y_min, y_max, x_min, x_max = self._bounds
+            current[y_min:y_max, x_min:x_max] = patch
+
+        # 如果图层全透明，降级为 None 以节省内存
+        if not np.any(current[..., 3]):
+            self._model.set_paint_overlay_image(None)
+        else:
+            self._model.set_paint_overlay_image(current)
+
+    def redo(self):
+        self._apply(self._full_new, self._new_patch)
+
+    def undo(self):
+        self._apply(self._full_old, self._old_patch)

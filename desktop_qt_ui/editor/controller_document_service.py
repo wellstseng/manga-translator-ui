@@ -13,6 +13,7 @@ from .session import DocumentLoadFailure, DocumentSnapshot
 from manga_translator.utils.path_manager import (
     find_inpainted_path,
     find_json_path,
+    find_paint_overlay_path,
     find_work_image_path,
     resolve_original_image_path,
 )
@@ -120,6 +121,30 @@ class EditorControllerDocumentService:
             self.logger.error(f"Error reading translation map for {image_path}: {e}")
         return None
 
+    def _load_paint_overlay_array(self, overlay_path: str, target_size):
+        """加载 paint overlay 图层并对齐到底图尺寸，返回 RGBA uint8 numpy 数组。"""
+        import numpy as np
+        from PIL import Image
+
+        try:
+            with Image.open(overlay_path) as overlay_image:
+                overlay_image.load()
+                if overlay_image.mode != "RGBA":
+                    converted = overlay_image.convert("RGBA")
+                    overlay_image.close()
+                    overlay_image = converted
+                if target_size is not None and overlay_image.size != target_size:
+                    resized = overlay_image.resize(target_size, Image.Resampling.NEAREST)
+                    overlay_image.close()
+                    overlay_image = resized
+                array = np.array(overlay_image, dtype=np.uint8, copy=True)
+            if array.ndim != 3 or array.shape[2] != 4:
+                return None
+            return array
+        except Exception as e:
+            self.logger.error(f"Failed to load paint overlay: {overlay_path} ({e})")
+            return None
+
     def resolve_editor_image_paths(self, image_path: str) -> tuple[str, str]:
         source_path = self.find_source_from_translation_map(image_path)
         if not source_path:
@@ -215,6 +240,17 @@ class EditorControllerDocumentService:
                         self.logger.error(f"Error loading inpainted image: {e}")
                         inpainted_path = None
 
+                paint_overlay_path = find_paint_overlay_path(source_path)
+                paint_overlay_image = None
+                if paint_overlay_path:
+                    try:
+                        paint_overlay_image = self._load_paint_overlay_array(paint_overlay_path, image.size)
+                        if paint_overlay_image is None:
+                            paint_overlay_path = None
+                    except Exception as e:
+                        self.logger.error(f"Error loading paint overlay: {e}")
+                        paint_overlay_path = None
+
                 return DocumentSnapshot(
                     source_path=source_path,
                     image=image,
@@ -223,6 +259,8 @@ class EditorControllerDocumentService:
                     raw_mask=raw_mask,
                     inpainted_path=inpainted_path,
                     inpainted_image=inpainted_image,
+                    paint_overlay_path=paint_overlay_path,
+                    paint_overlay_image=paint_overlay_image,
                 )
             except Exception as e:
                 self.logger.error(f"Error loading image data: {e}", exc_info=True)
