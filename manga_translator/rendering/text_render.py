@@ -409,14 +409,24 @@ def _state() -> FontState:
 def _raw_font(path: str, pixel_size: float) -> QRawFont:
     state = _state()
     _ensure_qt_runtime()
-    key = (_normalize_font_path(path), float(max(pixel_size, 1.0)))
+    norm_path = _normalize_font_path(path)
+    pixel_size = float(max(pixel_size, 1.0))
+    key = (norm_path, pixel_size)
     font = _cache_get(state.raw_fonts, key)
-    if font is None:
-        font = QRawFont(key[0], key[1])
-        if not font.isValid():
-            raise RuntimeError(f'Could not load Qt font: {key[0]}')
-        _cache_put(state.raw_fonts, key, font, _RAW_FONT_CACHE_MAX)
-    return font
+    if font is not None:
+        return font
+    # 复用已有实例：找同路径任意 size 的 font，拷贝后 setPixelSize
+    for cached_key in reversed(state.raw_fonts):
+        if cached_key[0] == norm_path:
+            base = state.raw_fonts[cached_key]
+            font = QRawFont(base)
+            font.setPixelSize(pixel_size)
+            return _cache_put(state.raw_fonts, key, font, _RAW_FONT_CACHE_MAX)
+    # 首次加载：从文件创建
+    font = QRawFont(norm_path, pixel_size)
+    if not font.isValid():
+        raise RuntimeError(f'Could not load Qt font: {norm_path}')
+    return _cache_put(state.raw_fonts, key, font, _RAW_FONT_CACHE_MAX)
 
 
 def _font_descriptor(path: str) -> LayoutFontDescriptor:
