@@ -150,11 +150,31 @@ def render_text_with_upscale(
     target_w = max(1, target_w)
     target_h = max(1, target_h)
     
-    downscaled_canvas = cv2.resize(
-        upscaled_canvas,
-        (target_w, target_h),
-        interpolation=cv2.INTER_AREA
-    )
+    # 关键修复：对 RGBA 做 Alpha 预乘再缩放，避免 INTER_AREA 把边缘像素和
+    # 透明黑 (0,0,0,0) 混合成灰/黑色晕边。缩放后保持预乘状态交给下游
+    # （rendering/__init__.py 的合成链路已改为预乘合成公式）。
+    if upscaled_canvas.ndim == 3 and upscaled_canvas.shape[2] == 4:
+        premul = upscaled_canvas.copy()
+        a_f = premul[:, :, 3].astype(np.float32) / 255.0
+        for c in range(3):
+            premul[:, :, c] = np.clip(
+                premul[:, :, c].astype(np.float32) * a_f, 0, 255
+            ).astype(np.uint8)
+        downscaled = cv2.resize(premul, (target_w, target_h), interpolation=cv2.INTER_AREA)
+        # 还原为非预乘，保持接口一致（下游会再次预乘）
+        downscaled_canvas = downscaled.copy()
+        a2 = downscaled[:, :, 3].astype(np.float32)
+        safe_a = np.where(a2 == 0, 1.0, a2)
+        for c in range(3):
+            downscaled_canvas[:, :, c] = np.clip(
+                downscaled[:, :, c].astype(np.float32) * 255.0 / safe_a, 0, 255
+            ).astype(np.uint8)
+    else:
+        downscaled_canvas = cv2.resize(
+            upscaled_canvas,
+            (target_w, target_h),
+            interpolation=cv2.INTER_AREA
+        )
     
     logger.debug(f"[HQ_RENDER] 渲染完成: {original_w}x{original_h} -> {target_w}x{target_h}")
     

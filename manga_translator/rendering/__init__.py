@@ -2489,8 +2489,18 @@ def render(
         return img
 
     # 在局部区域进行变换
-    rgba_region = cv2.warpPerspective(box, M_local, (local_w, local_h), flags=cv2.INTER_LANCZOS4, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
-    
+    # 关键修复：先做 Alpha 预乘，避免 warpPerspective 的 Lanczos 插值把边缘
+    # 像素和透明黑 (0,0,0,0) 混合成灰/黑色晕边。
+    if box.shape[2] == 4:
+        box_pm = box.copy()
+        a_f = box_pm[:, :, 3].astype(np.float32) / 255.0
+        for c in range(3):
+            box_pm[:, :, c] = np.clip(box_pm[:, :, c].astype(np.float32) * a_f, 0, 255).astype(np.uint8)
+    else:
+        box_pm = box
+
+    rgba_region = cv2.warpPerspective(box_pm, M_local, (local_w, local_h), flags=cv2.INTER_LANCZOS4, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+
     # 计算在局部区域中的有效范围
     local_text_x = x_adj - local_x1
     local_text_y = y_adj - local_y1
@@ -2500,6 +2510,9 @@ def render(
     valid_x2 = min(local_w, local_text_x + w_adj)
     
     if valid_y2 > valid_y1 and valid_x2 > valid_x1:
+        # canvas_region 已经是预乘的 RGB；直接使用预乘合成公式：
+        #   out = target*(1-a) + src_premul
+        # 不再除以 alpha 还原，避免边缘像素（alpha 很小）在还原时放大数值噪声
         canvas_region = rgba_region[valid_y1:valid_y2, valid_x1:valid_x2, :3]
         mask_region = rgba_region[valid_y1:valid_y2, valid_x1:valid_x2, 3:4].astype(np.float32) / 255.0
         
@@ -2512,7 +2525,7 @@ def render(
         target_region = img[img_target_y1:img_target_y2, img_target_x1:img_target_x2]
         if canvas_region.shape[:2] == target_region.shape[:2]:
             img[img_target_y1:img_target_y2, img_target_x1:img_target_x2] = np.clip(
-                (target_region.astype(np.float32) * (1 - mask_region) + canvas_region.astype(np.float32) * mask_region), 
+                target_region.astype(np.float32) * (1.0 - mask_region) + canvas_region.astype(np.float32),
                 0, 255
             ).astype(np.uint8)
         else:

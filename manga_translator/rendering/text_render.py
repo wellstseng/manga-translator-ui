@@ -205,30 +205,41 @@ def should_rotate_horizontal_block_90(content: str) -> bool:
 
 
 def add_color(bw_char_map, color, stroke_char_map, stroke_color):
+    """合成文字和描边为 RGBA 图层。
+
+    关键做法（解决灰边/脏边）：
+    1. 强制 stroke_alpha = max(stroke_alpha, text_alpha)，保证描边在空间上完全
+       覆盖文字的所有抗锯齿像素，消除因两次独立光栅化造成的对齐偏差。
+    2. 将描边视作文字的"底色"，抗锯齿过渡像素直接在描边纯色上混合，而不是
+       两个半透明层的 over 叠加 —— 这是原来灰边的根源。
+    3. 全程 float32 计算 + np.clip，避免 uint8 溢出导致的脏点。
+    """
+    H, W = bw_char_map.shape[:2]
     if bw_char_map.size == 0:
-        return np.zeros((bw_char_map.shape[0], bw_char_map.shape[1], 4), dtype=np.uint8)
-    x, y, w, h = cv2.boundingRect(bw_char_map if stroke_color is None else stroke_char_map)
-    if w == 0 or h == 0:
-        return np.zeros((bw_char_map.shape[0], bw_char_map.shape[1], 4), dtype=np.uint8)
-    fg = np.zeros((h, w, 4), dtype=np.uint8)
-    fg[:, :, :3] = color
-    fg[:, :, 3] = bw_char_map[y:y+h, x:x+w]
-    stroke_color = color if stroke_color is None else stroke_color
-    bg = np.zeros((stroke_char_map.shape[0], stroke_char_map.shape[1], 4), dtype=np.uint8)
-    bg[:, :, :3] = stroke_color
-    bg[:, :, 3] = stroke_char_map
-    
-    alpha_f = fg[:, :, 3:4] / 255.0
-    alpha_b = bg[y:y+h, x:x+w, 3:4] / 255.0
-    
-    out_alpha = alpha_f + alpha_b * (1.0 - alpha_f)
-    safe_alpha = np.where(out_alpha == 0, 1.0, out_alpha)
-    
-    out_rgb = (fg[:, :, :3] * alpha_f + bg[y:y+h, x:x+w, :3] * alpha_b * (1.0 - alpha_f)) / safe_alpha
-    
-    bg[y:y+h, x:x+w, :3] = np.clip(out_rgb, 0, 255).astype(np.uint8)
-    bg[y:y+h, x:x+w, 3:4] = np.clip(out_alpha * 255.0, 0, 255).astype(np.uint8)
-    return bg
+        return np.zeros((H, W, 4), dtype=np.uint8)
+
+    out = np.zeros((H, W, 4), dtype=np.uint8)
+    color_arr = np.asarray(color, dtype=np.float32).reshape(1, 1, 3)
+
+    # 无描边：直接输出文字图层
+    if stroke_color is None or stroke_char_map is None:
+        out[:, :, :3] = np.clip(color_arr, 0, 255).astype(np.uint8)
+        out[:, :, 3] = bw_char_map
+        return out
+
+    stroke_color_arr = np.asarray(stroke_color, dtype=np.float32).reshape(1, 1, 3)
+
+    # 1) 强制 stroke_alpha >= text_alpha —— 关键修复
+    text_alpha_u8 = bw_char_map
+    stroke_alpha_u8 = np.maximum(stroke_char_map, text_alpha_u8)
+
+    # 2) 文字在描边纯色底上混合（局部不透明，无半透明层叠加）
+    text_af = (text_alpha_u8.astype(np.float32) / 255.0)[:, :, None]
+    rgb = color_arr * text_af + stroke_color_arr * (1.0 - text_af)
+
+    out[:, :, :3] = np.clip(rgb, 0, 255).astype(np.uint8)
+    out[:, :, 3] = stroke_alpha_u8
+    return out
 
 
 def _bootstrap_qt_fontdir_for_offscreen() -> None:
