@@ -560,11 +560,13 @@ def _glyph_spec_from_selection(cdpt: str, font_size: int) -> Optional[GlyphSpec]
     state = _state()
     for path in state.font_selection:
         raw_font = _raw_font(path, font_size)
-        if not _font_supports_character(raw_font, cdpt):
-            continue
+        # Avoid raw_font.supportsCharacter() because it freezes on some fonts
         glyphs = raw_font.glyphIndexesForString(cdpt)
         glyph_id = glyphs[0] if glyphs else 0
-        if _glyph_renderable(raw_font, glyph_id, cdpt):
+        if glyph_id > 0 and _glyph_renderable(raw_font, glyph_id, cdpt):
+            return GlyphSpec(raw_font, int(glyph_id), ('font-path', _normalize_font_path(path)))
+        # Space character might legitimately have glyph_id == 0 or map to advance
+        if glyph_id == 0 and cdpt.isspace() and _glyph_has_advance(raw_font, glyph_id):
             return GlyphSpec(raw_font, int(glyph_id), ('font-path', _normalize_font_path(path)))
     return None
 
@@ -575,6 +577,7 @@ def _glyph_spec(cdpt: str, font_size: int) -> GlyphSpec:
     cached = _cache_get(state.glyph_specs, key)
     if cached is not None:
         return cached
+    # 优先使用 font_selection 手动查找，修复 Qt layout 找不到某些字体的问题
     spec = _glyph_spec_from_selection(cdpt, font_size) or _glyph_spec_via_layout(cdpt, font_size)
     if spec is None:
         if cdpt in (' ', '?', '□'):
@@ -764,12 +767,37 @@ def _line_surface(line_text: str, font_size: int, border_size: int, stroke_ratio
         return None
     path = QPainterPath()
     for run in layout.glyphRuns():
-        for glyph_id, pos in zip(run.glyphIndexes(), run.positions()):
-            glyph_path = run.rawFont().pathForGlyph(glyph_id)
+        glyph_indexes = run.glyphIndexes()
+        positions = run.positions()
+        # stringIndexes() gives the index into the original string
+        try:
+            string_indexes = run.stringIndexes()
+        except Exception:
+            string_indexes = []
+            
+        for i in range(len(glyph_indexes)):
+            glyph_id = glyph_indexes[i]
+            pos = positions[i]
+            raw_font = run.rawFont()
+            
+            # 手动处理 Qt layout 找不到字体的 fallback（解决横排有些字体渲染不出来的问题）
+            if glyph_id == 0 and i < len(string_indexes):
+                char_idx = string_indexes[i]
+                if char_idx < len(normalized):
+                    char = normalized[char_idx]
+                    try:
+                        spec = _glyph_spec(char, font_size)
+                        raw_font = spec.raw_font
+                        glyph_id = spec.glyph_id
+                    except Exception:
+                        pass
+                        
+            glyph_path = raw_font.pathForGlyph(glyph_id)
             if glyph_path.isEmpty():
                 continue
             glyph_path.translate(pos.x(), pos.y())
             path.addPath(glyph_path)
+            
     if path.isEmpty():
         return None
     fill_alpha, fill_left, fill_top = _rasterize_path(path)
