@@ -9,7 +9,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from PIL import Image
 
-from ._ad_skip_validator import detect_ad_skip_violations, format_violations_for_retry
+from ._ad_skip_validator import (
+    apply_sfx_skip,
+    detect_ad_skip_violations,
+    format_violations_for_retry,
+)
 from .common import (
     VALID_LANGUAGES,
     CommonTranslator,
@@ -52,6 +56,10 @@ def encode_image_to_base64(image, max_size: int = 1024) -> str:
     buf = BytesIO()
     image.save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode('utf-8')
+
+
+class ClaudeCliRateLimitError(Exception):
+    """Claude CLI 訂閱用量達上限。不應 retry，因每次 retry 仍會收同樣 limit 訊息且耗訊息額度。"""
 
 
 class ClaudeCliTranslator(CommonTranslator):
@@ -298,6 +306,12 @@ class ClaudeCliTranslator(CommonTranslator):
                     await self._sleep_with_cancel_polling(1)
                     continue
 
+                # Claude 訂閱 rate limit：CLI 直接回 "You've hit your limit · resets HH:MMam/pm (TZ)"
+                # 此訊息不是 JSON，硬 retry 只會白燒額度，丟 ClaudeCliRateLimitError 跳過 retry。
+                if "hit your limit" in result_text.lower():
+                    self.logger.error(f"Claude CLI 訂閱用量上限觸發，停止 retry：{result_text.strip()[:120]}")
+                    raise ClaudeCliRateLimitError(result_text.strip()[:200])
+
                 clean = result_text.strip()
                 if clean.startswith("```") and clean.endswith("```"):
                     code_match = re.search(r'```(?:json)?\s*\n(.*?)\n```', clean, flags=re.DOTALL)
@@ -369,6 +383,10 @@ class ClaudeCliTranslator(CommonTranslator):
                         await self._sleep_with_cancel_polling(2)
                         continue
 
+                translations, sfx_skipped = apply_sfx_skip(texts, translations)
+                if sfx_skipped:
+                    self.logger.info(f"Claude HQ: SFX skip 處理 {sfx_skipped} 條（譯文→空字串讓 render 跳過嵌字）")
+
                 self._emit_final_translation_results(texts, translations)
 
                 if not self._validate_br_markers(translations, queries=texts, ctx=ctx,
@@ -392,6 +410,8 @@ class ClaudeCliTranslator(CommonTranslator):
                 return translations[:len(texts)]
 
             except asyncio.CancelledError:
+                raise
+            except ClaudeCliRateLimitError:
                 raise
             except Exception as e:
                 last_exception = e

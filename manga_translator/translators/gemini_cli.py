@@ -8,7 +8,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from PIL import Image
 
-from ._ad_skip_validator import detect_ad_skip_violations, format_violations_for_retry
+from ._ad_skip_validator import (
+    apply_sfx_skip,
+    detect_ad_skip_violations,
+    format_violations_for_retry,
+)
 from .common import (
     VALID_LANGUAGES,
     CommonTranslator,
@@ -360,6 +364,10 @@ class GeminiCliTranslator(CommonTranslator):
                         self._session_id = None
                         await self._sleep_with_cancel_polling(2)
                         continue
+
+                translations, sfx_skipped = apply_sfx_skip(texts, translations)
+                if sfx_skipped:
+                    self.logger.info(f"Gemini HQ: SFX skip 處理 {sfx_skipped} 條（譯文→空字串讓 render 跳過嵌字）")
 
                 self._emit_final_translation_results(texts, translations)
 

@@ -99,3 +99,54 @@ def format_violations_for_retry(violations: List[Tuple[int, str, str]]) -> str:
         lines.append(f"  id={idx + 1}: 原文「{src[:40]}」→ 你翻成「{tgt[:40]}」")
     lines.append("→ 下次必須輸出原文（{\"id\": N, \"text\": \"原文\", \"note\": \"AD_SKIP\"}）。")
     return "\n".join(lines)
+
+
+# SFX 短促擬聲詞 pattern：全假名 + 含長音/促音記號
+# 對應 manga_hq_zh.yaml § 五、c. 規則
+_SFX_RE = re.compile(
+    r'^[ぁ-んァ-ヴ]{0,3}'        # 可選假名前綴 (0-3 字)
+    r'[ッっー〜～―‐]+'            # 必含 1+ 個 sfx 標記（促音/長音）
+    r'[ぁ-んァ-ヴ！!？?ー〜～―ッっ]*'  # 後可帶假名/標點/更多長音促音
+    r'$'
+)
+
+
+def detect_sfx_pattern(text: str) -> bool:
+    """偵測短促擬聲詞（純假名 + 含長音/促音標記、字數 ≤ 7）。
+
+    範例：チッ / フッ / プシュー―ッ / は～い / ガッ！ / クッ → True
+          そうね / ええ / おはよう（無 sfx 標記） → False
+          炎の壁（含漢字） → False
+    """
+    text = text.strip()
+    if not text or len(text) > 7:
+        return False
+    return bool(_SFX_RE.match(text))
+
+
+def apply_sfx_skip(
+    source_texts: List[str],
+    translations: List[str],
+) -> Tuple[List[str], int]:
+    """若譯文 = 原文且原文符合 SFX pattern，譯文改空字串讓 render 跳過嵌字。
+
+    對應 yaml § 五、c. 規則：LLM 已照規則保留 sfx 原文，但 render 端會把
+    region.translation 嵌回頁面 → 日文殘留。此 helper 把譯文清空，
+    render 端的 `if not region.translation.strip()` 分支會走 min_rect 不繪字。
+
+    Returns:
+        (processed_translations, skipped_count)
+    """
+    out: List[str] = []
+    count = 0
+    for src, tgt in zip(source_texts, translations):
+        if (
+            src and tgt
+            and src.strip() == tgt.strip()
+            and detect_sfx_pattern(src)
+        ):
+            out.append("")
+            count += 1
+        else:
+            out.append(tgt)
+    return out, count
