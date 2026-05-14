@@ -761,43 +761,32 @@ def _crop_pair(text_canvas: np.ndarray, border_canvas: np.ndarray):
     return None if w == 0 or h == 0 else (text_canvas[y:y+h, x:x+w], border_canvas[y:y+h, x:x+w], x, y, w, h)
 
 
+def _get_fallback_glyph(glyph_id: int, run_font: QRawFont, char: str, font_size: int) -> Tuple[QRawFont, int]:
+    if glyph_id > 0 or not char:
+        return run_font, glyph_id
+    try:
+        spec = _glyph_spec(char, font_size)
+        return spec.raw_font, spec.glyph_id
+    except Exception:
+        return run_font, glyph_id
+
+
 def _line_surface(line_text: str, font_size: int, border_size: int, stroke_ratio: float = 0.07, reversed_direction: bool = False, letter_spacing: float = 1.0):
     normalized, _, layout, line = _horizontal_line(line_text, font_size, letter_spacing)
     if not line_text or line is None:
         return None
     path = QPainterPath()
     for run in layout.glyphRuns():
-        glyph_indexes = run.glyphIndexes()
-        positions = run.positions()
-        # stringIndexes() gives the index into the original string
-        try:
-            string_indexes = run.stringIndexes()
-        except Exception:
-            string_indexes = []
+        string_indexes = run.stringIndexes() if hasattr(run, 'stringIndexes') else []
+        for i, (glyph_id, pos) in enumerate(zip(run.glyphIndexes(), run.positions())):
+            char = normalized[string_indexes[i]] if i < len(string_indexes) and string_indexes[i] < len(normalized) else ""
+            raw_font, glyph_id = _get_fallback_glyph(glyph_id, run.rawFont(), char, font_size)
             
-        for i in range(len(glyph_indexes)):
-            glyph_id = glyph_indexes[i]
-            pos = positions[i]
-            raw_font = run.rawFont()
-            
-            # 手动处理 Qt layout 找不到字体的 fallback（解决横排有些字体渲染不出来的问题）
-            if glyph_id == 0 and i < len(string_indexes):
-                char_idx = string_indexes[i]
-                if char_idx < len(normalized):
-                    char = normalized[char_idx]
-                    try:
-                        spec = _glyph_spec(char, font_size)
-                        raw_font = spec.raw_font
-                        glyph_id = spec.glyph_id
-                    except Exception:
-                        pass
-                        
             glyph_path = raw_font.pathForGlyph(glyph_id)
-            if glyph_path.isEmpty():
-                continue
-            glyph_path.translate(pos.x(), pos.y())
-            path.addPath(glyph_path)
-            
+            if not glyph_path.isEmpty():
+                glyph_path.translate(pos.x(), pos.y())
+                path.addPath(glyph_path)
+                
     if path.isEmpty():
         return None
     fill_alpha, fill_left, fill_top = _rasterize_path(path)
