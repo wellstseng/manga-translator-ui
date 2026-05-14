@@ -4,8 +4,11 @@ import py3langid as langid
 
 from ..config import Config, Translator, TranslatorChain, TranslatorConfig
 from ..utils import Context
+from .claude_cli import ClaudeCliTranslator
+from .codex_cli import CodexCliTranslator
 from .common import *
 from .gemini import GeminiTranslator
+from .gemini_cli import GeminiCliTranslator
 from .gemini_hq import GeminiHighQualityTranslator
 from .none import NoneTranslator
 from .openai import OpenAITranslator
@@ -18,6 +21,9 @@ GPT_TRANSLATORS = {
     Translator.openai_hq: OpenAIHighQualityTranslator,
     Translator.gemini: GeminiTranslator,
     Translator.gemini_hq: GeminiHighQualityTranslator,
+    Translator.claude_cli: ClaudeCliTranslator,
+    Translator.codex_cli: CodexCliTranslator,
+    Translator.gemini_cli: GeminiCliTranslator,
 }
 
 TRANSLATORS = {

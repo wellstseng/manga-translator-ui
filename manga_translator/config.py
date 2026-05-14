@@ -128,6 +128,9 @@ class Translator(str, Enum):
     gemini = "gemini"
     gemini_hq = "gemini_hq"
     sakura = "sakura"
+    claude_cli = "claude_cli"
+    codex_cli = "codex_cli"
+    gemini_cli = "gemini_cli"
     none = "none"
     original = "original"
 
