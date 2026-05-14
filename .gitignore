@@ -47,5 +47,11 @@ Thumbs.db
 .env.local
 *.access.json
 
+# ─────────────── 個人 runtime 設定（UI/CLI 啟動自動產生，非範本）───────────────
+# 範本見 examples/config-example.json；以下三檔每次跑都會被覆寫
+examples/config.json
+examples/custom_api_params.json
+examples/filter_list.json
+
 # ─────────────── 既有 .bat 殘留（macOS 不需）───────────────
 # 已手動刪除，保留 ignore 以防之後 git pull 拉回又刪除衝突
