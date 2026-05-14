@@ -20,7 +20,7 @@ albumentations==2.0.8
 arabic-reshaper==3.0.0
 backports.statistics==0.1.0
 colorama==0.4.6
-ctranslate2==3.24.0
+ctranslate2>=4.6.0
 customtkinter==5.2.2
 einops==0.8.1
 fastapi==0.116.1
@@ -59,10 +59,10 @@ pydantic==2.11.7
 pyperclip==1.9.0
 pythainlp[nlpo3]==5.3.1
 
-# pydensecrf - 预编译 wheel 文件 (Python 3.12 macOS universal2)
-pydensecrf @ https://github.com/hgmzhn/pydensecrf/releases/download/v1.0.0/pydensecrf-1.0-cp312-cp312-macosx_10_13_universal2.whl
-# 如果下载失败,可从源码安装(需要 Xcode 命令行工具):
-# pydensecrf @ git+https://github.com/lucasb-eyer/pydensecrf.git
+# pydensecrf - 从源码安装（需要 Xcode 命令行工具 + Cython + numpy 已先装）
+# universal2 wheel 在 conda osx-arm64 Python 3.12 下不被 pip 接受，改 git+source
+# pydensecrf @ https://github.com/hgmzhn/pydensecrf/releases/download/v1.0.0/pydensecrf-1.0-cp312-cp312-macosx_10_13_universal2.whl
+pydensecrf @ git+https://github.com/lucasb-eyer/pydensecrf.git
 
 PyHyphen==4.0.4
 PyQt6==6.9.1
