@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from PIL import Image
 
+from ._ad_skip_validator import detect_ad_skip_violations, format_violations_for_retry
 from .common import (
     VALID_LANGUAGES,
     CommonTranslator,
@@ -173,7 +174,7 @@ class CodexCliTranslator(CommonTranslator):
             batch_data = []
 
         # 把 image 寫到 tempfile，codex 用 -i <file> 附加
-        self.logger.info(f"Codex HQ: writing {len(batch_data)} image(s) to tempfile")
+        self.logger.info(f"Codex HQ: preparing {len(batch_data)} image batch item(s)")
         image_paths: List[str] = []
         tmp_files: List[str] = []
         try:
@@ -196,6 +197,7 @@ class CodexCliTranslator(CommonTranslator):
                 image_paths.append(tmp.name)
 
             send_images = len(image_paths) > 0
+            self.logger.info(f"Codex HQ: wrote {len(image_paths)} image(s) to tempfile")
             if not send_images:
                 self.logger.info("No image available, Codex falls back to text-only")
 
@@ -336,6 +338,20 @@ class CodexCliTranslator(CommonTranslator):
                     self._session_id = None
                     await self._sleep_with_cancel_polling(2)
                     continue
+
+                ad_violations = detect_ad_skip_violations(texts, translations)
+                if ad_violations:
+                    retry_attempt += 1
+                    retry_reason = format_violations_for_retry(ad_violations)
+                    log_at = f"{attempt}/{max_retries}" if not is_infinite else f"Attempt {attempt}"
+                    self.logger.warning(f"[{log_at}] AD_SKIP 違反 {len(ad_violations)} 條，retry")
+                    last_exception = Exception(f"AD_SKIP 規則違反: {len(ad_violations)} 條")
+                    if not is_infinite and attempt >= max_retries:
+                        self.logger.warning("AD_SKIP 違反但達 max_retries，放行")
+                    else:
+                        self._session_id = None
+                        await self._sleep_with_cancel_polling(2)
+                        continue
 
                 self._emit_final_translation_results(texts, translations)
 

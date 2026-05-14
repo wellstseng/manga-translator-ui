@@ -41,6 +41,19 @@ from .utils.text_filter import ensure_filter_list_exists, match_filter
 matplotlib.use('Agg')  # 使用非GUI后端
 from matplotlib import cm
 
+HQ_VISION_TRANSLATORS = {
+    Translator.openai_hq,
+    Translator.gemini_hq,
+    Translator.claude_cli,
+    Translator.codex_cli,
+    Translator.gemini_cli,
+}
+
+
+def _is_hq_vision_translator(translator_type: Translator) -> bool:
+    return translator_type in HQ_VISION_TRANSLATORS
+
+
 from .colorization import dispatch as dispatch_colorization
 from .colorization import prepare as prepare_colorization
 from .colorization import unload as unload_colorization
@@ -3308,9 +3321,8 @@ class MangaTranslator:
         if images_with_configs:
             first_config = images_with_configs[0][1]
             if first_config and hasattr(first_config.translator, 'translator'):
-                from manga_translator.config import Translator
                 translator_type = first_config.translator.translator
-                is_hq_translator = translator_type in [Translator.openai_hq, Translator.gemini_hq]
+                is_hq_translator = _is_hq_vision_translator(translator_type)
                 is_import_export_mode = self.load_text or self.template or self.translate_json_only
 
                 # 如果是高质量翻译且未启用并发模式，使用专用的高质量翻译流程
@@ -4453,8 +4465,7 @@ class MangaTranslator:
                     
                     # 复制第一个ctx的其他必要属性
                     first_ctx = batch[0][0]
-                    if hasattr(first_ctx, 'from_lang'):
-                        merged_ctx.from_lang = first_ctx.from_lang
+                    merged_ctx.from_lang = getattr(first_ctx, 'from_lang', None) or 'auto'
                     
                     # ✅ 加载AI断句prompt和自定义HQ prompt
                     merged_ctx = await self._load_and_prepare_prompts(sample_config, merged_ctx)
@@ -4480,7 +4491,7 @@ class MangaTranslator:
                     
                     # ✅ 为HQ翻译器准备high_quality_batch_data（包含图片和text_regions）
                     # 这是HQ翻译器进入高质量批量模式的必要条件，也是AI断句检查能正常工作的前提
-                    if sample_config.translator.translator in [Translator.openai_hq, Translator.gemini_hq]:
+                    if _is_hq_vision_translator(sample_config.translator.translator):
                         hq_batch_data = []
                         global_text_index = 1  # 全局文本编号从1开始（与提示词中的编号一致）
                         for ctx, _ in batch:
@@ -4916,10 +4927,8 @@ class MangaTranslator:
         if config.translator.translator == Translator.none:
             return ["" for _ in texts]
 
-
-
         # 如果是OpenAI翻译器、Gemini翻译器或高质量翻译器，需要处理上下文
-        if config.translator.translator in [Translator.openai, Translator.gemini, Translator.openai_hq, Translator.gemini_hq]:
+        if config.translator.translator in [Translator.openai, Translator.gemini] or _is_hq_vision_translator(config.translator.translator):
             if config.translator.translator == Translator.openai:
                 from .translators.openai import OpenAITranslator
                 translator = OpenAITranslator()
@@ -4932,6 +4941,15 @@ class MangaTranslator:
             elif config.translator.translator == Translator.gemini_hq:
                 from .translators.gemini_hq import GeminiHighQualityTranslator
                 translator = GeminiHighQualityTranslator()
+            elif config.translator.translator == Translator.claude_cli:
+                from .translators.claude_cli import ClaudeCliTranslator
+                translator = ClaudeCliTranslator()
+            elif config.translator.translator == Translator.codex_cli:
+                from .translators.codex_cli import CodexCliTranslator
+                translator = CodexCliTranslator()
+            elif config.translator.translator == Translator.gemini_cli:
+                from .translators.gemini_cli import GeminiCliTranslator
+                translator = GeminiCliTranslator()
 
             translator.parse_args(config)
             # 注意：-1 表示无限重试，也是有效值
@@ -4976,8 +4994,8 @@ class MangaTranslator:
             # 将config附加到ctx，供翻译器使用（例如AI断句功能）
             ctx.config = config
             
-            # openai_hq、gemini_hq 等需要传递ctx参数
-            if config.translator.translator in [Translator.openai_hq, Translator.gemini_hq]:
+            # HQ vision translators need the merged ctx with image batch data.
+            if _is_hq_vision_translator(config.translator.translator):
                 # 所有需要上下文的翻译器都在这里传递ctx
                 return await translator._translate(
                     ctx.from_lang,
@@ -5703,6 +5721,7 @@ class MangaTranslator:
                                 enhanced_ctx.input = first_ctx.input
                             if hasattr(first_ctx, 'img_rgb'):
                                 enhanced_ctx.img_rgb = first_ctx.img_rgb
+                            enhanced_ctx.from_lang = getattr(first_ctx, 'from_lang', None) or 'auto'
                         
                         enhanced_ctx.high_quality_batch_data = batch_data
 

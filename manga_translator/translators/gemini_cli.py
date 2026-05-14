@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from PIL import Image
 
+from ._ad_skip_validator import detect_ad_skip_violations, format_violations_for_retry
 from .common import (
     VALID_LANGUAGES,
     CommonTranslator,
@@ -172,7 +173,7 @@ class GeminiCliTranslator(CommonTranslator):
         if batch_data is None:
             batch_data = []
 
-        self.logger.info(f"Gemini HQ: writing {len(batch_data)} image(s) to tempfile")
+        self.logger.info(f"Gemini HQ: preparing {len(batch_data)} image batch item(s)")
         image_paths: List[str] = []
         tmp_files: List[str] = []
         try:
@@ -193,8 +194,9 @@ class GeminiCliTranslator(CommonTranslator):
                 image_paths.append(tmp.name)
 
             send_images = len(image_paths) > 0
+            self.logger.info(f"Gemini HQ: wrote {len(image_paths)} image(s) to tempfile")
             if not send_images:
-                self.logger.info("No image, Gemini falls back to text-only")
+                self.logger.info("No usable image available, Gemini falls back to text-only")
 
             return await self._do_translate_loop(
                 texts, batch_data, image_paths, send_images,
@@ -345,6 +347,20 @@ class GeminiCliTranslator(CommonTranslator):
                     await self._sleep_with_cancel_polling(2)
                     continue
 
+                ad_violations = detect_ad_skip_violations(texts, translations)
+                if ad_violations:
+                    retry_attempt += 1
+                    retry_reason = format_violations_for_retry(ad_violations)
+                    log_at = f"{attempt}/{max_retries}" if not is_infinite else f"Attempt {attempt}"
+                    self.logger.warning(f"[{log_at}] AD_SKIP 違反 {len(ad_violations)} 條，retry")
+                    last_exception = Exception(f"AD_SKIP 規則違反: {len(ad_violations)} 條")
+                    if not is_infinite and attempt >= max_retries:
+                        self.logger.warning("AD_SKIP 違反但達 max_retries，放行")
+                    else:
+                        self._session_id = None
+                        await self._sleep_with_cancel_polling(2)
+                        continue
+
                 self._emit_final_translation_results(texts, translations)
 
                 if not self._validate_br_markers(translations, queries=texts, ctx=ctx,
@@ -386,9 +402,10 @@ class GeminiCliTranslator(CommonTranslator):
         Accumulates assistant `content` (delta-true). Ignores tool_use/tool_result
         events from the read_file flow.
         """
+        prompt_stub = "Follow the full manga translation task instructions provided on stdin."
         cmd = [
             self.cli_path,
-            "-p", prompt,
+            "-p", prompt_stub,
             "-o", "stream-json",
             "-y",
         ]
@@ -403,7 +420,7 @@ class GeminiCliTranslator(CommonTranslator):
 
         proc = await asyncio.create_subprocess_exec(
             *cmd,
-            stdin=asyncio.subprocess.DEVNULL,
+            stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             limit=8 * 1024 * 1024,
@@ -414,6 +431,16 @@ class GeminiCliTranslator(CommonTranslator):
         captured_session_id: Optional[str] = None
 
         try:
+            try:
+                proc.stdin.write(prompt.encode("utf-8"))
+                proc.stdin.write(b"\n")
+                await proc.stdin.drain()
+                proc.stdin.close()
+            except Exception as e:
+                self.logger.warning(f"Failed writing to Gemini CLI stdin: {e}")
+                finish_reason = "stdin_error"
+                return result_text, finish_reason
+
             try:
                 while True:
                     line_bytes = await asyncio.wait_for(proc.stdout.readline(), timeout=self.cli_timeout)

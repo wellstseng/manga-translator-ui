@@ -3455,7 +3455,13 @@ class TranslationWorker(QObject):
             self._log_info("--- 配置对象创建完成")
 
             translator_type = config.translator.translator
-            is_hq = translator_type in [Translator.openai_hq, Translator.gemini_hq]
+            is_hq = translator_type in [
+                Translator.openai_hq,
+                Translator.gemini_hq,
+                Translator.claude_cli,
+                Translator.codex_cli,
+                Translator.gemini_cli,
+            ]
             batch_size = self.config_dict.get('cli', {}).get('batch_size', 1)
 
             # 准备save_info（所有模式都需要）
@@ -4274,4 +4280,3 @@ class TranslationRunnable(QRunnable):
     def _emit_file_processed(self, data):
         """线程安全地发送文件处理完成信号"""
         self.signals.file_processed.emit(data)
-
