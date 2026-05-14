@@ -108,6 +108,12 @@ RUN if [ "$BUILD_TYPE" = "gpu" ]; then \
 # 创建必要的目录（不覆盖已存在的目录）
 RUN mkdir -p /app/result /app/models /app/logs
 
+# 备份默认数据以便在挂载空卷时恢复
+RUN cp -r /app/examples /app/default_examples && \
+    cp -r /app/fonts /app/default_fonts && \
+    cp -r /app/dict /app/default_dict && \
+    cp -r /app/manga_translator/server/data /app/default_server_data
+
 # 设置环境变量
 ENV PYTHONUNBUFFERED=1
 ENV MANGA_TRANSLATOR_WEB_SERVER=true
@@ -115,6 +121,10 @@ ENV QT_QPA_PLATFORM=offscreen
 
 # 暴露端口
 EXPOSE 8000
+
+# 复制并设置 entrypoint
+RUN chmod +x /app/packaging/docker-entrypoint.sh
+ENTRYPOINT ["/app/packaging/docker-entrypoint.sh"]
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
