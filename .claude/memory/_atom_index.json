@@ -1,0 +1,197 @@
+{
+  "version": "1.0",
+  "atoms": [
+    {
+      "name": "decision-fork-ui-architecture",
+      "path": "memory/shared/decision-fork-ui-architecture.md",
+      "triggers": [
+        "fork",
+        "上游",
+        "upstream",
+        "為什麼",
+        "why",
+        "設計決策",
+        "服務容器",
+        "DI"
+      ],
+      "scope": "global"
+    },
+    {
+      "name": "doc-index",
+      "path": "memory/shared/doc-index.md",
+      "triggers": [
+        "檔案在哪",
+        "哪個檔",
+        "where is",
+        "doc index",
+        "文件索引"
+      ],
+      "scope": "global"
+    },
+    {
+      "name": "module-backend-plugins",
+      "path": "memory/shared/module-backend-plugins.md",
+      "triggers": [
+        "translators",
+        "ocr",
+        "detection",
+        "inpainting",
+        "rendering",
+        "dispatch",
+        "後端插件",
+        "翻譯器",
+        "檢測器",
+        "嵌字",
+        "渲染"
+      ],
+      "scope": "global"
+    },
+    {
+      "name": "module-desktop-qt-ui",
+      "path": "memory/shared/module-desktop-qt-ui.md",
+      "triggers": [
+        "desktop_qt_ui",
+        "PyQt6",
+        "GUI",
+        "主視窗",
+        "MainWindow",
+        "編輯器",
+        "editor",
+        "ServiceContainer",
+        "服務容器",
+        "i18n",
+        "async"
+      ],
+      "scope": "global"
+    },
+    {
+      "name": "module-packaging",
+      "path": "memory/shared/module-packaging.md",
+      "triggers": [
+        "packaging",
+        "PyInstaller",
+        "打包",
+        "build",
+        "Docker",
+        "requirements",
+        "依賴鎖檔",
+        "啟動腳本",
+        "launch",
+        "更新",
+        "conda",
+        "Miniforge"
+      ],
+      "scope": "global"
+    },
+    {
+      "name": "module-pipeline-core",
+      "path": "memory/shared/module-pipeline-core.md",
+      "triggers": [
+        "manga_translator",
+        "pipeline",
+        "翻譯流程",
+        "translate_batch",
+        "主流程",
+        "config",
+        "args",
+        "運行模式",
+        "mode"
+      ],
+      "scope": "global"
+    },
+    {
+      "name": "pitfall-pyinstaller-dll-order",
+      "path": "memory/shared/pitfall-pyinstaller-dll-order.md",
+      "triggers": [
+        "PyInstaller",
+        "onnxruntime",
+        "DLL",
+        "c10.dll",
+        "PyQt6",
+        "torch import 順序",
+        "_MEIPASS",
+        "add_dll_directory"
+      ],
+      "scope": "global"
+    },
+    {
+      "name": "project-overview",
+      "path": "memory/shared/project-overview.md",
+      "triggers": [
+        "manga-translator-ui",
+        "漫畫翻譯",
+        "manga",
+        "專案總覽",
+        "架構",
+        "architecture",
+        "技術棧",
+        "tech stack"
+      ],
+      "scope": "global"
+    },
+    {
+      "name": "torch-與-pyqt6-匯入順序及打包變體限制",
+      "path": "memory/shared/torch-與-pyqt6-匯入順序及打包變體限制.md",
+      "triggers": [
+        "torch PyQt6 匯入順序",
+        "c10.dll",
+        "Qt DLL 衝突",
+        "desktop_qt_ui/main.py",
+        "build_packages.py",
+        "cpu gpu 變體 metal amd",
+        "onnxruntime DLL 修復"
+      ],
+      "scope": "global"
+    },
+    {
+      "name": "manga-translator-ui-安裝amd-與-macos-metal",
+      "path": "memory/shared/manga-translator-ui-安裝amd-與-macos-metal.md",
+      "triggers": [
+        "requirements_amd.txt",
+        "ROCm Linux",
+        "AMD 安裝",
+        "macOS_1_首次安装.sh",
+        "requirements_metal.txt",
+        "MPS 支援",
+        "Metal 安裝"
+      ],
+      "scope": "global"
+    },
+    {
+      "name": "manga-translator-ui-巡檢基準2026-07",
+      "path": "memory/shared/manga-translator-ui-巡檢基準2026-07.md",
+      "triggers": [
+        "patrol baseline",
+        "patrol-state.md",
+        "fe4c841f",
+        "巡檢基準"
+      ],
+      "scope": "global"
+    },
+    {
+      "name": "manga-translator-ui-進入點與執行緒模型",
+      "path": "memory/shared/manga-translator-ui-進入點與執行緒模型.md",
+      "triggers": [
+        "manga_translator.py",
+        "translate_batch",
+        "app_logic.py",
+        "MangaTranslator 實例化",
+        "daemon thread asyncio",
+        "desktop_qt_ui/main.py",
+        "manga_translator/__main__.py",
+        "QThreadPool",
+        "單張圖片 pipeline 順序"
+      ],
+      "scope": "global"
+    },
+    {
+      "name": "patrol-state",
+      "path": "memory/shared/patrol-state.md",
+      "triggers": [
+        "patrol-state",
+        "巡檢基準"
+      ],
+      "scope": "global"
+    }
+  ]
+}
