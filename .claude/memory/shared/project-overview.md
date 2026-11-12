@@ -4,6 +4,7 @@
 - Confidence: [觀]
 - Trigger: manga-translator-ui, 漫畫翻譯, manga, 專案總覽, 架構, architecture, 技術棧, tech stack
 - Tags: L0
+- Source: commit:b1c46ef 2026-10-05（原對話已逾保留期）
 
 ## 知識
 

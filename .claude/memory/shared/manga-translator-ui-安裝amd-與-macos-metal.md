@@ -5,6 +5,7 @@
 - Confidence: [臨]
 - Trigger: requirements_amd.txt, ROCm Linux, AMD 安裝, macOS_1_首次安装.sh, requirements_metal.txt, MPS 支援, Metal 安裝
 - Created-at: 2026-07-02
+- Source: commit:b1c46ef 2026-07-02（原對話已逾保留期）
 
 ## 知識
 

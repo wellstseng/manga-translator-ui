@@ -4,6 +4,7 @@
 - Layer: state
 - Confidence: [固]
 - Trigger: patrol-state, 巡檢基準
+- Source: commit:b1c46ef 2026-10-05（原對話已逾保留期）
 
 ## 知識
 

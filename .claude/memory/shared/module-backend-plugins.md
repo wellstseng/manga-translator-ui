@@ -4,6 +4,7 @@
 - Confidence: [臨]
 - Trigger: translators, ocr, detection, inpainting, rendering, dispatch, 後端插件, 翻譯器, 檢測器, 嵌字, 渲染
 - Tags: L1
+- Source: commit:b1c46ef 2026-10-05（原對話已逾保留期）
 
 ## 知識
 

@@ -4,6 +4,7 @@
 - Confidence: [觀]
 - Trigger: manga_translator, pipeline, 翻譯流程, translate_batch, 主流程, config, args, 運行模式, mode
 - Tags: L1
+- Source: commit:b1c46ef 2026-10-05（原對話已逾保留期）
 
 ## 知識
 

@@ -4,6 +4,7 @@
 - Confidence: [觀]
 - Trigger: PyInstaller, onnxruntime, DLL, c10.dll, PyQt6, torch import 順序, _MEIPASS, add_dll_directory
 - Tags: pitfall
+- Source: commit:b1c46ef 2026-10-05（原對話已逾保留期）
 
 ## 知識
 

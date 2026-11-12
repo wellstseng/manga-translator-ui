@@ -4,6 +4,7 @@
 - Confidence: [觀]
 - Trigger: packaging, PyInstaller, 打包, build, Docker, requirements, 依賴鎖檔, 啟動腳本, launch, 更新, conda, Miniforge
 - Tags: L1
+- Source: commit:b1c46ef 2026-10-05（原對話已逾保留期）
 
 ## 知識
 

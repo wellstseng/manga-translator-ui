@@ -6,6 +6,7 @@
 - Trigger: torch PyQt6 匯入順序, c10.dll, Qt DLL 衝突, desktop_qt_ui/main.py, build_packages.py, cpu gpu 變體 metal amd, onnxruntime DLL 修復
 - Created-at: 2026-07-02
 - Related: pitfall-pyinstaller-dll-order, module-packaging, module-desktop-qt-ui
+- Source: commit:b1c46ef 2026-07-02（原對話已逾保留期）
 
 ## 知識
 

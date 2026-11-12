@@ -6,6 +6,7 @@
 - Trigger: manga_translator.py, translate_batch, app_logic.py, MangaTranslator 實例化, daemon thread asyncio, desktop_qt_ui/main.py, manga_translator/__main__.py, QThreadPool, 單張圖片 pipeline 順序
 - Created-at: 2026-05-14
 - Related: module-pipeline-core, module-desktop-qt-ui, pitfall-pyinstaller-dll-order
+- Source: commit:b1c46ef 2026-05-14（原對話已逾保留期）
 
 ## 知識
 

@@ -5,6 +5,7 @@
 - Confidence: [臨]
 - Trigger: patrol baseline, patrol-state.md, fe4c841f, 巡檢基準
 - Created-at: 2026-07-02
+- Source: commit:b1c46ef 2026-07-02（原對話已逾保留期）
 
 ## 知識
 

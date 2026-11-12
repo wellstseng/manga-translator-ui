@@ -4,6 +4,7 @@
 - Confidence: [觀]
 - Trigger: fork, 上游, upstream, 為什麼, why, 設計決策, 服務容器, DI
 - Tags: decision
+- Source: commit:b1c46ef 2026-10-05（原對話已逾保留期）
 
 ## 知識
 

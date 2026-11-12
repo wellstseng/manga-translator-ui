@@ -4,6 +4,7 @@
 - Confidence: [觀]
 - Trigger: desktop_qt_ui, PyQt6, GUI, 主視窗, MainWindow, 編輯器, editor, ServiceContainer, 服務容器, i18n, async
 - Tags: L1
+- Source: commit:b1c46ef 2026-10-05（原對話已逾保留期）
 
 ## 知識
 
